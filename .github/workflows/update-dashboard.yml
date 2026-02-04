@@ -1,0 +1,50 @@
+name: Update Cursor Dashboard
+
+on:
+  # Run daily at 9 AM
+  schedule:
+    - cron: '0 9 * * *'
+  
+  # Allow manual trigger
+  workflow_dispatch:
+  
+  # Run when catalogue.json files change
+  push:
+    paths:
+      - '**/catalogue.json'
+      - '**/screenshot.png'
+
+jobs:
+  update-dashboard:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+      
+      - name: Generate dashboard
+        run: |
+          cd cursor-launcher
+          python3 generate_dashboard.py
+      
+      - name: Check for changes
+        id: git-check
+        run: |
+          git diff --exit-code dashboard.html || echo "changed=true" >> $GITHUB_OUTPUT
+      
+      - name: Commit and push if changed
+        if: steps.git-check.outputs.changed == 'true'
+        run: |
+          git config user.name "GitHub Actions Bot"
+          git config user.email "actions@github.com"
+          git add cursor-launcher/dashboard.html
+          git commit -m "🤖 Auto-update Cursor dashboard"
+          git push
