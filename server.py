@@ -19,6 +19,7 @@ DASHBOARD_DIR = Path(__file__).parent
 PINNED_FILE = DASHBOARD_DIR / "pinned.json"
 RECENT_FILE = DASHBOARD_DIR / "recent.json"
 MAX_RECENT = 20
+CURSOR_CMD = "/usr/local/bin/cursor"  # Full path for Dock app compatibility
 
 class CursorLauncherHandler(http.server.SimpleHTTPRequestHandler):
     """Custom handler that can open Cursor in new windows."""
@@ -121,17 +122,17 @@ class CursorLauncherHandler(http.server.SimpleHTTPRequestHandler):
         try:
             if new_window:
                 # -n flag opens in new window
-                subprocess.Popen(['cursor', '-n', path], 
+                subprocess.Popen([CURSOR_CMD, '-n', path], 
                                stdout=subprocess.DEVNULL, 
                                stderr=subprocess.DEVNULL)
             else:
                 # Default: opens in current window or new if none open
-                subprocess.Popen(['cursor', path],
+                subprocess.Popen([CURSOR_CMD, path],
                                stdout=subprocess.DEVNULL,
                                stderr=subprocess.DEVNULL)
             print(f"✅ Opened in Cursor{' (new window)' if new_window else ''}: {path}")
         except FileNotFoundError:
-            print(f"❌ Error: 'cursor' command not found. Make sure Cursor CLI is installed.")
+            print(f"❌ Error: 'cursor' command not found at {CURSOR_CMD}.")
             print("   Run: Cursor > Command Palette > 'Shell Command: Install cursor command'")
         except Exception as e:
             print(f"❌ Error opening Cursor: {e}")

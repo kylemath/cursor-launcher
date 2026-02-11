@@ -1,0 +1,25 @@
+#!/bin/bash
+# Cursor Project Launcher - Dock App
+
+# Fixed project directory (absolute path)
+PROJECT_DIR="/Users/kylemathewson/Coding/TOOLS/cursor-launcher"
+
+# Change to project directory
+cd "$PROJECT_DIR"
+
+# Kill any existing server on port 8847
+lsof -ti :8847 | xargs kill -9 2>/dev/null
+
+# Regenerate the dashboard first
+/usr/bin/python3 "$PROJECT_DIR/generate_dashboard.py"
+
+# Start the server in background
+/usr/bin/python3 "$PROJECT_DIR/server.py" &
+
+# Wait for server to start
+sleep 1
+
+# Open the dashboard in default browser
+open "http://localhost:8847"
+
+exit 0
