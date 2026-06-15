@@ -1,0 +1,11 @@
+{
+  "id": "cursor-launcher",
+  "title": "Cursor Launcher",
+  "oneLiner": "An easy to launch web interface to open cursor workspaces with cards",
+  "demoUrl": "https://github.com/kylemath/cursor-launcher",
+  "screenshot": "https://raw.githubusercontent.com/kylemath/cursor-launcher/main/screenshot.png",
+  "kind": "project",
+  "categories": ["coding", "workflow", "cursor"],
+  "tags": ["coding", "workflow", "cursor"],
+  "status": "published"
+}

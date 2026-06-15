@@ -1,0 +1,35 @@
+name: Build Public Dashboard
+
+# SECURITY: This workflow must never commit a generated dashboard back to the
+# repo. The full dashboard embeds private repo names, local paths, and
+# screenshots. Only the sanitized --public build is produced here, and it is
+# published as a build artifact (manual trigger only) rather than committed.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-public-dashboard:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Generate sanitized public dashboard
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 generate_dashboard.py --public
+
+      - name: Upload public dashboard artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dashboard-public
+          path: dashboard_public.html
+          if-no-files-found: warn

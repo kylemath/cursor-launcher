@@ -1,0 +1,73 @@
+#!/bin/bash
+# Cursor Project Launcher — Dock App
+
+# The .app bundle lives inside the project folder, so derive the project
+# directory from this script's own location (works for any user/machine).
+PROJECT_DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
+PORT=8847
+LOG="$PROJECT_DIR/.app-launcher.log"
+
+exec > "$LOG" 2>&1
+echo "=== Cursor Launcher started at $(date) ==="
+
+# ---------- Find a real Python 3 (not the Xcode stub) ----------
+PY=""
+for candidate in \
+    "$HOME/.pyenv/shims/python3" \
+    "/opt/homebrew/bin/python3" \
+    "/usr/local/bin/python3" \
+    "/usr/bin/python3"; do
+    if "$candidate" -c "import http.server" 2>/dev/null; then
+        PY="$candidate"
+        break
+    fi
+done
+
+if [ -z "$PY" ]; then
+    osascript -e 'display dialog "Cursor Launcher: could not find Python 3. Install it via Homebrew: brew install python" with title "Cursor Launcher" buttons {"OK"} default button "OK" with icon stop'
+    exit 1
+fi
+
+echo "Using Python: $PY ($($PY --version 2>&1))"
+
+# ---------- Kill any stale server on our port ----------
+STALE=$(lsof -ti :$PORT 2>/dev/null)
+if [ -n "$STALE" ]; then
+    echo "Killing stale server (PID $STALE)"
+    kill -9 $STALE 2>/dev/null
+    sleep 0.5
+fi
+
+# ---------- Regenerate dashboard ----------
+echo "Regenerating dashboard..."
+cd "$PROJECT_DIR"
+"$PY" "$PROJECT_DIR/generate_dashboard.py" >> "$LOG" 2>&1
+
+# ---------- Start server ----------
+# CL_NO_BROWSER stops server.py from opening its own (default-browser) tab;
+# this script opens Chrome below, so we avoid a duplicate page.
+echo "Starting server on port $PORT..."
+CL_NO_BROWSER=1 "$PY" "$PROJECT_DIR/server.py" >> "$LOG" 2>&1 &
+SERVER_PID=$!
+echo "Server PID: $SERVER_PID"
+
+# ---------- Wait until accepting connections (up to 15s) ----------
+for i in $(seq 1 30); do
+    if curl -s "http://localhost:$PORT/" -o /dev/null 2>/dev/null; then
+        echo "Server ready after ~$((i/2))s"
+        break
+    fi
+    sleep 0.5
+done
+
+# ---------- Open in Chrome, fall back to default browser ----------
+URL="http://localhost:$PORT/"
+if open -a "Google Chrome" "$URL" 2>/dev/null; then
+    echo "Opened in Chrome: $URL"
+elif open -a "Safari" "$URL" 2>/dev/null; then
+    echo "Opened in Safari: $URL"
+else
+    open "$URL"
+fi
+
+wait $SERVER_PID
