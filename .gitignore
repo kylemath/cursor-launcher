@@ -51,6 +51,12 @@ github_cache.json
 gh_assets/
 pinned.json
 
+# Full local identity — includes private repo names. The committed
+# repos.json / repo_groups.json are public-only (written by --public).
+*.local.json
+repos.local.json
+repo_groups.local.json
+
 # Generated dashboard — contains private repo names, local paths, and
 # embedded screenshots. Never commit this to the public repo.
 dashboard.html

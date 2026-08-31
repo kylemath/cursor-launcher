@@ -12,6 +12,7 @@ screenshots in gh_assets/, so only changed repos are re-fetched.
 CLI:
     python3 github_repos.py refresh     # rebuild the cache (the slow part)
     python3 github_repos.py list        # print cached remote projects
+    python3 github_repos.py export-repos  # write repos.local.json (all) + public repos.json
 """
 
 import base64
@@ -26,6 +27,8 @@ BASE_DIR = Path(__file__).resolve().parent
 CACHE_FILE = BASE_DIR / "github_cache.json"
 ASSETS_DIR = BASE_DIR / "gh_assets"
 GH_USER = "kylemath"
+REPOS_FILE = BASE_DIR / "repos.json"
+REPOS_LOCAL_FILE = BASE_DIR / "repos.local.json"
 
 
 def _run(args: List[str], timeout: int = 60) -> Optional[str]:
@@ -247,12 +250,62 @@ def load_remote_projects(local_remotes: Optional[Set[str]] = None,
     return projects
 
 
+def export_repos_list() -> Dict:
+    """Write repos.local.json (all visibilities) and public-only repos.json."""
+    raw = _run([
+        "gh", "repo", "list", "--limit", "1000",
+        "--json", "name,description,visibility",
+    ], timeout=120)
+    if not raw:
+        raise SystemExit("gh repo list failed — is `gh auth login` done?")
+    listed = json.loads(raw)
+    repos = []
+    for item in listed:
+        repos.append({
+            "name": item.get("name") or "",
+            "description": item.get("description") or "",
+            "visibility": str(item.get("visibility") or "").lower(),
+        })
+    public_repos = [r for r in repos if r["visibility"] == "public"]
+    private_repos = [r for r in repos if r["visibility"] == "private"]
+    local = {
+        "count": len(repos),
+        "generated": datetime.now().strftime("%Y-%m-%d"),
+        "owner": GH_USER,
+        "private_count": len(private_repos),
+        "public_count": len(public_repos),
+        "repos": repos,
+    }
+    REPOS_LOCAL_FILE.write_text(json.dumps(local, ensure_ascii=False) + "\n", encoding="utf-8")
+    public = {
+        "count": len(public_repos),
+        "generated": datetime.now().strftime("%Y-%m-%d"),
+        "owner": GH_USER,
+        "public_count": len(public_repos),
+        "repos": public_repos,
+    }
+    REPOS_FILE.write_text(json.dumps(public, indent=2, ensure_ascii=False) + "\n",
+                          encoding="utf-8")
+    return {
+        "all": len(repos),
+        "public": len(public_repos),
+        "private": len(private_repos),
+        "local": str(REPOS_LOCAL_FILE),
+        "public_file": str(REPOS_FILE),
+    }
+
+
 def _main(argv):
     if not argv or argv[0] == "refresh":
         fetch_and_cache(progress=lambda m: print(m, flush=True))
     elif argv[0] == "list":
         for p in load_remote_projects():
             print(f"  {'🔒' if p['private'] else '🌐'} {p['title']:<30} {p['last_commit_rel']}")
+    elif argv[0] == "export-repos":
+        info = export_repos_list()
+        print(f"Wrote {info['all']} repos ({info['public']} public, "
+              f"{info['private']} private) to {info['local']}")
+        print(f"Wrote public-only list ({info['public']}) to {info['public_file']}")
     else:
         print(__doc__)
     return 0

@@ -37,6 +37,10 @@ PINNED_FILE = Path(__file__).parent / "pinned.json"
 CURSOR_STORAGE = Path.home() / "Library/Application Support/Cursor/User/globalStorage/storage.json"
 CATALOGUE_FILE = "catalogue.json"
 SCREENSHOT_FILE = "screenshot.png"
+GROUPS_FILE = Path(__file__).parent / "repo_groups.json"
+GROUPS_LOCAL_FILE = Path(__file__).parent / "repo_groups.local.json"
+REPOS_FILE = Path(__file__).parent / "repos.json"
+REPOS_LOCAL_FILE = Path(__file__).parent / "repos.local.json"
 
 # Main categories (subdirectories to scan recursively)
 MAIN_CATEGORIES = ["RESEARCH", "TEACHING", "TOOLS", "PUZZLES", "HARDWARE"]
@@ -56,6 +60,256 @@ COMMON_OSX_FOLDERS = {
     'OneDrive', 'Google Drive', 'GoogleDrive', 'Creative Cloud Files',
     'Sites', 'iCloud Drive', 'Parallels', 'VirtualBox VMs',
 }
+
+
+def _read_json_file(path: Path) -> Optional[Dict]:
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else None
+    except Exception:
+        return None
+
+
+def load_json_prefer_local(public_path: Path) -> Optional[Dict]:
+    """Prefer the gitignored *.local.json copy, then the committed public file."""
+    local_path = public_path.with_name(f"{public_path.stem}.local.json")
+    return _read_json_file(local_path) or _read_json_file(public_path)
+
+
+def load_repos_catalog() -> Dict:
+    """Full repo list for the sorter. Local file includes private names."""
+    return load_json_prefer_local(REPOS_FILE) or {"repos": []}
+
+
+def public_repo_names(catalog: Optional[Dict] = None) -> Set[str]:
+    """Repo names that are safe to publish (visibility == public)."""
+    data = catalog if catalog is not None else load_repos_catalog()
+    names: Set[str] = set()
+    for repo in data.get("repos") or []:
+        if not isinstance(repo, dict):
+            continue
+        vis = str(repo.get("visibility") or "").lower()
+        name = repo.get("name")
+        if name and vis == "public":
+            names.add(name)
+    return names
+
+
+def sanitize_groups_for_public(group_data: Dict, allowed_names: Set[str]) -> Dict:
+    """Drop private / unknown repo names from sorter groups."""
+    allowed_lower = {n.lower() for n in allowed_names}
+    columns = []
+    by_repo: Dict[str, Dict] = {}
+    for col in group_data.get("columns") or []:
+        names = []
+        seen = set()
+        for name in col.get("names") or []:
+            if not name or name.lower() in seen:
+                continue
+            if name not in allowed_names and name.lower() not in allowed_lower:
+                continue
+            seen.add(name.lower())
+            names.append(name)
+        if not names and str(col.get("id")) != "general":
+            continue
+        title = (col.get("title") or "Untitled").strip() or "Untitled"
+        cid = str(col.get("id") or title)
+        entry = {"id": cid, "title": title}
+        cleaned = {"id": cid, "title": title, "names": names}
+        columns.append(cleaned)
+        for name in names:
+            by_repo[name] = entry
+            by_repo[name.lower()] = entry
+    return {
+        "columns": columns,
+        "by_repo": by_repo,
+        "colsPerRow": str(group_data.get("colsPerRow") or "auto"),
+    }
+
+
+def write_public_identity_files() -> Dict[str, int]:
+    """Write anonymized repos.json + repo_groups.json for the public repo."""
+    catalog = load_repos_catalog()
+    public_names = public_repo_names(catalog)
+    public_repos = []
+    for repo in catalog.get("repos") or []:
+        if not isinstance(repo, dict):
+            continue
+        if str(repo.get("visibility") or "").lower() != "public":
+            continue
+        public_repos.append({
+            "name": repo.get("name") or "",
+            "description": repo.get("description") or "",
+            "visibility": "public",
+        })
+    repos_out = {
+        "count": len(public_repos),
+        "generated": datetime.now().strftime("%Y-%m-%d"),
+        "owner": catalog.get("owner") or "",
+        "public_count": len(public_repos),
+        "repos": public_repos,
+    }
+    REPOS_FILE.write_text(json.dumps(repos_out, indent=2, ensure_ascii=False) + "\n",
+                          encoding="utf-8")
+
+    groups = load_json_prefer_local(GROUPS_FILE) or {"columns": []}
+    public_groups = sanitize_groups_for_public(groups, public_names)
+    groups_out = {
+        "saved": datetime.now().isoformat(),
+        "colsPerRow": public_groups.get("colsPerRow") or "auto",
+        "public": True,
+        "columns": public_groups.get("columns") or [],
+    }
+    GROUPS_FILE.write_text(json.dumps(groups_out, indent=2, ensure_ascii=False) + "\n",
+                           encoding="utf-8")
+    return {
+        "public_repos": len(public_repos),
+        "public_groups": len(groups_out["columns"]),
+    }
+
+
+def anonymize_project_for_public(project: Dict) -> None:
+    """Strip local machine state so the public dashboard stays anonymous."""
+    project["is_pinned"] = False
+    project["cursor_recent_idx"] = None
+    project["path"] = ""
+    project["runnable"] = False
+    project["server_url"] = None
+    project["server_port"] = None
+    project["port_designated"] = False
+    project["port_conflict"] = False
+    g = project.get("git") or {}
+    g["uncommitted"] = 0
+    g["file_count"] = 0
+    g["remote_url"] = None
+    for branch in g.get("branches") or []:
+        branch["ahead"] = 0
+        branch["behind"] = 0
+    project["git"] = g
+
+
+def load_repo_groups() -> Dict:
+    """Load sorter groups. Prefers repo_groups.local.json (private names)."""
+    data = load_json_prefer_local(GROUPS_FILE)
+    if not data:
+        return {"columns": [], "by_repo": {}, "colsPerRow": "auto"}
+    columns = data.get("columns") or []
+    by_repo: Dict[str, Dict] = {}
+    for col in columns:
+        title = (col.get("title") or "Untitled").strip() or "Untitled"
+        cid = str(col.get("id") or title)
+        entry = {"id": cid, "title": title}
+        for name in col.get("names") or []:
+            if not name:
+                continue
+            by_repo[name] = entry
+            by_repo[name.lower()] = entry
+    return {
+        "columns": columns,
+        "by_repo": by_repo,
+        "colsPerRow": str(data.get("colsPerRow") or "auto"),
+    }
+
+
+def assign_sorter_group(project: Dict, by_repo: Dict) -> None:
+    """Attach sorter_group / sorter_group_id by matching repo or folder name."""
+    keys = []
+    git = project.get("git") or {}
+    for key in (
+        git.get("repo_name"),
+        project.get("id"),
+        Path(project["path"]).name if project.get("path") else None,
+        project.get("title"),
+        (project.get("rel_path") or "").rsplit("/", 1)[-1],
+    ):
+        if key and key not in keys:
+            keys.append(key)
+    hit = None
+    matched = None
+    for key in keys:
+        if key in by_repo:
+            hit = by_repo[key]
+            matched = key
+            break
+        low = by_repo.get(key.lower())
+        if low:
+            hit = low
+            matched = key
+            break
+    project["sorter_group"] = hit["title"] if hit else ""
+    project["sorter_group_id"] = hit["id"] if hit else ""
+    project["sorter_repo"] = matched or (keys[0] if keys else "")
+
+
+def _project_name_keys(project: Dict) -> List[str]:
+    keys = []
+    git = project.get("git") or {}
+    for key in (
+        git.get("repo_name"),
+        project.get("id"),
+        Path(project["path"]).name if project.get("path") else None,
+        project.get("title"),
+        (project.get("rel_path") or "").rsplit("/", 1)[-1],
+    ):
+        if key and key not in keys:
+            keys.append(key)
+    return keys
+
+
+def order_projects_by_names(projects: List[Dict], names: List[str]) -> List[Dict]:
+    index = {n.lower(): i for i, n in enumerate(names) if n}
+    def sort_key(p):
+        for key in _project_name_keys(p):
+            if key.lower() in index:
+                return (0, index[key.lower()])
+        return (1, (p.get("title") or "").lower())
+    return sorted(projects, key=sort_key)
+
+
+def item_filter_attrs(project: Dict) -> str:
+    """data-* attributes used by location + sorter-group filters."""
+    cat = html.escape(str(project.get("category") or ""), quote=True)
+    pinned = "true" if project.get("is_pinned") else "false"
+    source = html.escape(str(project.get("source") or "local"), quote=True)
+    gid = html.escape(str(project.get("sorter_group_id") or ""), quote=True)
+    glabel = html.escape(str(project.get("sorter_group") or ""), quote=True)
+    repo = html.escape(str(project.get("sorter_repo") or ""), quote=True)
+    return (
+        f'data-category="{cat}" data-pinned="{pinned}" '
+        f'data-source="{source}" data-group="{gid}" data-group-label="{glabel}" '
+        f'data-repo="{repo}"'
+    )
+
+
+def group_select_html(project: Dict, columns: List[Dict]) -> str:
+    """Dropdown to reassign a project to a sorter group."""
+    if PUBLIC_MODE:
+        return html.escape(project.get("sorter_group") or "—")
+    current = str(project.get("sorter_group_id") or "general")
+    repo = html.escape(str(project.get("sorter_repo") or ""), quote=True)
+    opts = []
+    for col in columns:
+        cid = str(col.get("id") or "")
+        if not cid:
+            continue
+        title = (col.get("title") or "Untitled").strip() or "Untitled"
+        sel = " selected" if cid == current else ""
+        opts.append(
+            f'<option value="{html.escape(cid, quote=True)}"{sel}>{html.escape(title)}</option>'
+        )
+    if not opts:
+        return html.escape(project.get("sorter_group") or "—")
+    return (
+        f'<select class="group-pick" data-repo="{repo}" '
+        f'onclick="event.stopPropagation()" onchange="changeProjectGroup(this, event)">'
+        f'{"".join(opts)}</select>'
+    )
+
+
+def _js_str(value: str) -> str:
+    return value.replace("\\", "\\\\").replace("'", "\\'")
 
 
 def scan_home_folders(pinned_paths: List[str], cursor_recent: List[str],
@@ -326,25 +580,27 @@ def find_all_projects() -> List[Dict]:
         except PermissionError:
             pass
     
-    # Scan root CODING folder for "OTHER" projects (first level only)
-    try:
-        for item in CODING_ROOT.iterdir():
-            if not item.is_dir():
-                continue
-            if item.name in MAIN_CATEGORIES or item.name in IGNORE_FOLDERS:
-                continue
-            
-            item_str = str(item)
-            if item_str in seen_paths:
-                continue
-            
-            # Every first-level folder outside main categories is "OTHER"
-            seen_paths.add(item_str)
-            project = create_project_entry(item, "OTHER", pinned_paths, cursor_recent)
-            if project:
-                projects.append(project)
-    except PermissionError:
-        pass
+    # Scan root CODING folder for "OTHER" projects (first level only).
+    # Skip entirely if ~/Coding was deleted or never created.
+    if CODING_ROOT.is_dir():
+        try:
+            for item in CODING_ROOT.iterdir():
+                if not item.is_dir():
+                    continue
+                if item.name in MAIN_CATEGORIES or item.name in IGNORE_FOLDERS:
+                    continue
+
+                item_str = str(item)
+                if item_str in seen_paths:
+                    continue
+
+                # Every first-level folder outside main categories is "OTHER"
+                seen_paths.add(item_str)
+                project = create_project_entry(item, "OTHER", pinned_paths, cursor_recent)
+                if project:
+                    projects.append(project)
+        except PermissionError:
+            pass
     
     # Scan home directory for top-level folders (skips already-seen paths like ~/Coding).
     # Never in public mode: the home listing is private machine layout.
@@ -604,13 +860,13 @@ def generate_github_card_html(project: Dict) -> str:
     name = project['id'].replace("'", "\\'")
     git_status_html = render_git_status(project)
     search_str = html.escape(
-        f"{project['title']} {one_liner} {full} {' '.join(project.get('tags', []))} github",
+        f"{project['title']} {one_liner} {full} {' '.join(project.get('tags', []))} github {project.get('sorter_group','')}",
         quote=True,
     )
     cat_badge = ('<span class="badge cat-github">GitHub</span>')
     return f'''
-    <div class="project-card github-card searchable" data-source="github"
-         data-search="{search_str}" data-category="GITHUB" data-pinned="false"
+    <div class="project-card github-card searchable" {item_filter_attrs(project)}
+         data-search="{search_str}"
          data-name="{html.escape(project['title'].lower(), quote=True)}"
          data-mtime="{project.get('mtime', 0)}" data-commit="{project.get('last_commit_ts', 0)}"
          data-runnable="false" data-port="">
@@ -694,21 +950,19 @@ def generate_card_html(project: Dict, compact: bool = False, show_category: bool
     extra = f' {extra_attrs}' if extra_attrs else ''
     search_str = html.escape(
         f"{project['title']} {one_liner} {project.get('rel_path','')} "
-        f"{' '.join(project.get('tags', []))} {project.get('category','')}",
+        f"{' '.join(project.get('tags', []))} {project.get('category','')} {project.get('sorter_group','')}",
         quote=True,
     )
     name_key = html.escape(project['title'].lower(), quote=True)
     git_status_html = render_git_status(project)
     port_badge = render_port(project)
     data_attrs = (
-        f'data-category="{project.get("category","")}" '
-        f'data-pinned="{str(project.get("is_pinned", False)).lower()}" '
+        f'{item_filter_attrs(project)} '
         f'data-name="{name_key}" '
         f'data-mtime="{project.get("mtime", 0)}" '
         f'data-commit="{project.get("last_commit_ts", 0)}" '
         f'data-runnable="{str(project.get("runnable", False)).lower()}" '
-        f'data-port="{project.get("server_port") or ""}" '
-        f'data-source="{project.get("source", "local")}"'
+        f'data-port="{project.get("server_port") or ""}"'
     )
     return f'''
     <div class="{card_class} {pin_class} searchable" data-path="{project['path']}" data-id="{project['id']}" data-search="{search_str}" {data_attrs}{extra}>
@@ -764,6 +1018,79 @@ def generate_home_folders_html(home_projects: List[Dict]) -> str:
             </div>
         </div>
     '''
+
+
+ROW_DOTS = [
+    "#667eea", "#48bb78", "#ed8936", "#9f7aea",
+    "#e53e3e", "#38b2ac", "#4fd1c5", "#d69e2e",
+]
+
+
+def generate_group_rows_html(projects: List[Dict], group_data: Dict) -> str:
+    """Netflix-style rows from sorter.html categories, in saved column order."""
+    columns = [c for c in (group_data.get("columns") or []) if c.get("id")]
+    if not columns:
+        return ""
+
+    by_gid: Dict[str, List[Dict]] = {}
+    unassigned: List[Dict] = []
+    for p in projects:
+        gid = str(p.get("sorter_group_id") or "")
+        if gid:
+            by_gid.setdefault(gid, []).append(p)
+        else:
+            unassigned.append(p)
+
+    if unassigned:
+        by_gid.setdefault("general", []).extend(unassigned)
+
+    def render_row(col, idx, locked=False):
+        cid = str(col.get("id"))
+        items = by_gid.get(cid) or []
+        if not items:
+            return ""
+        items = order_projects_by_names(items, col.get("names") or [])
+        title = (col.get("title") or "Untitled").strip() or "Untitled"
+        cards = "".join(generate_card_html(p, show_category=False) for p in items)
+        dot = ROW_DOTS[idx % len(ROW_DOTS)]
+        stripe = "row-even" if idx % 2 == 0 else "row-odd"
+        safe_id = html.escape(cid, quote=True)
+        handle = (
+            ""
+            if locked
+            else '<span class="row-handle" draggable="true" title="Drag to reorder this category">⋮⋮</span>'
+        )
+        locked_attr = ' data-locked="1"' if locked else ""
+        return (
+            f'''<div class="category-row {stripe}" data-group-id="{safe_id}"{locked_attr}>
+            <div class="row-header">
+                {handle}
+                <h2 style="--dot:{dot}">{html.escape(title)}</h2>
+                <span class="count">{len(items)}</span>
+            </div>
+            <div class="row-content">{cards}</div>
+        </div>'''
+        )
+
+    rows = []
+    idx = 0
+    general_col = None
+    for col in columns:
+        if str(col.get("id")) == "general":
+            general_col = col
+            continue
+        html_row = render_row(col, idx)
+        if html_row:
+            rows.append(html_row)
+            idx += 1
+    if general_col:
+        html_row = render_row(general_col, idx, locked=True)
+        if html_row:
+            rows.append(html_row)
+
+    if not rows:
+        return ""
+    return f'<div class="categories-container" id="groupRows">{"".join(rows)}</div>'
 
 
 def generate_feed_card_html(project: Dict) -> str:
@@ -831,18 +1158,23 @@ def generate_feed_card_html(project: Dict) -> str:
 
     search_str = html.escape(
         f"{project['title']} {desc} {project.get('rel_path','')} "
-        f"{' '.join(project.get('tags', []))} {cat}",
+        f"{' '.join(project.get('tags', []))} {cat} {project.get('sorter_group','')}",
         quote=True,
     )
     git_status_html = render_git_status(project)
     git_branches_html = render_git_branches(project)
     port_badge = render_port(project)
+    group = project.get("sorter_group") or ""
+    group_chip = (
+        f'<span class="chip chip-group">{html.escape(group)}</span>' if group else ""
+    )
     return f'''
-    <article class="feed-card searchable" data-search="{search_str}" data-port="{project.get('server_port') or ''}">
+    <article class="feed-card searchable" {item_filter_attrs(project)} data-search="{search_str}" data-port="{project.get('server_port') or ''}">
         <div class="feed-thumb" onclick="openProject('{escaped_path}', event)">{img_tag}</div>
         <div class="feed-body">
             <div class="feed-head">
                 <span class="chip chip-{cat.lower()}">{cat_label}</span>
+                {group_chip}
                 <h3 onclick="openProject('{escaped_path}', event)">{title}</h3>
                 {port_badge}
             </div>
@@ -876,13 +1208,18 @@ def generate_github_feed_card_html(project: Dict) -> str:
     name = project['id'].replace("'", "\\'")
     git_status_html = render_git_status(project)
     search_str = html.escape(
-        f"{project['title']} {desc} {project.get('rel_path','')} github", quote=True)
+        f"{project['title']} {desc} {project.get('rel_path','')} github {project.get('sorter_group','')}", quote=True)
+    group = project.get("sorter_group") or ""
+    group_chip = (
+        f'<span class="chip chip-group">{html.escape(group)}</span>' if group else ""
+    )
     return f'''
-    <article class="feed-card github-card searchable" data-source="github" data-search="{search_str}">
+    <article class="feed-card github-card searchable" {item_filter_attrs(project)} data-search="{search_str}">
         <div class="feed-thumb" onclick="openGithub('{html_url}', event)">{img_tag}</div>
         <div class="feed-body">
             <div class="feed-head">
                 <span class="chip chip-github">GitHub</span>
+                {group_chip}
                 <h3 onclick="openGithub('{html_url}', event)">{title}</h3>
             </div>
             <p class="feed-desc">{desc}</p>
@@ -911,7 +1248,7 @@ def generate_feed_html(projects: List[Dict]) -> str:
     return f'<div class="feed-container">{cards}</div>'
 
 
-def _github_table_row(p: Dict) -> str:
+def _github_table_row(p: Dict, columns: Optional[List[Dict]] = None) -> str:
     """A table row for a GitHub repo that isn't cloned locally."""
     title = html.escape(p['title'])
     clone_url = (p.get('clone_url') or '').replace("'", "\\'")
@@ -930,10 +1267,12 @@ def _github_table_row(p: Dict) -> str:
         f'<button class="action-btn clone-btn tbl-run" onclick="cloneRepo(\'{clone_url}\', \'{name}\', event)" title="Clone &amp; open">⬇</button>'
         f'<button class="action-btn manage-inline tbl-run" onclick="openGithub(\'{html_url}\', event)" title="Open on GitHub">↗</button>'
     )
-    search_str = html.escape(f"{p['title']} {p.get('rel_path','')} github", quote=True)
-    return f'''<tr class="table-row github-row searchable" data-source="github" data-search="{search_str}" onclick="openGithub('{html_url}', event)">
+    group = p.get("sorter_group") or ""
+    search_str = html.escape(f"{p['title']} {p.get('rel_path','')} github {group}", quote=True)
+    return f'''<tr class="table-row github-row searchable" {item_filter_attrs(p)} data-search="{search_str}" onclick="openGithub('{html_url}', event)">
         <td class="td-title">{title} <span class="gh-tag">☁</span></td>
         <td><span class="chip chip-github">GitHub</span></td>
+        <td data-sort="{html.escape(group.lower())}" onclick="event.stopPropagation()">{group_select_html(p, columns or [])}</td>
         <td data-sort="">—</td>
         <td data-sort="-1" class="td-mono">—</td>
         <td data-sort="-1" class="td-mono">—</td>
@@ -948,8 +1287,9 @@ def _github_table_row(p: Dict) -> str:
     </tr>'''
 
 
-def generate_table_html(projects: List[Dict]) -> str:
+def generate_table_html(projects: List[Dict], columns: Optional[List[Dict]] = None) -> str:
     """Sortable, Gmail-style table view."""
+    columns = columns or []
     def recency(p):
         return max(p.get('last_commit_ts') or 0, p.get('mtime') or 0)
     ordered = sorted(projects, key=recency, reverse=True)
@@ -957,7 +1297,7 @@ def generate_table_html(projects: List[Dict]) -> str:
     rows = ''
     for p in ordered:
         if p.get('source') == 'github':
-            rows += _github_table_row(p)
+            rows += _github_table_row(p, columns)
             continue
         escaped_path = p['path'].replace("'", "\\'").replace('"', '\\"')
         title = html.escape(p['title'])
@@ -1029,12 +1369,14 @@ def generate_table_html(projects: List[Dict]) -> str:
         else:
             port_cell = '—'
             port_sort = 0
+        group = p.get("sorter_group") or ""
         search_str = html.escape(
-            f"{p['title']} {p.get('rel_path','')} {cat} {status} {branch}", quote=True
+            f"{p['title']} {p.get('rel_path','')} {cat} {status} {branch} {group}", quote=True
         )
-        rows += f'''<tr class="table-row searchable" data-search="{search_str}" data-port="{port or ''}" onclick="openProject('{escaped_path}', event)">
+        rows += f'''<tr class="table-row searchable" {item_filter_attrs(p)} data-search="{search_str}" data-port="{port or ''}" onclick="openProject('{escaped_path}', event)">
             <td class="td-title">{title}</td>
             <td><span class="chip chip-{cat.lower()}">{html.escape(cat)}</span></td>
+            <td data-sort="{html.escape(group.lower())}" onclick="event.stopPropagation()">{group_select_html(p, columns)}</td>
             <td data-sort="{html.escape((g.get('current_branch') or '').lower())}">{branch}</td>
             <td data-sort="{sync_sort}" class="td-mono">{sync}</td>
             <td data-sort="{dirty_sort}" class="td-mono">{dirty_disp}</td>
@@ -1054,17 +1396,18 @@ def generate_table_html(projects: List[Dict]) -> str:
             <thead><tr>
                 <th class="sortable-th" onclick="sortTable(0,'text')">Project</th>
                 <th class="sortable-th" onclick="sortTable(1,'text')">Category</th>
-                <th class="sortable-th" onclick="sortTable(2,'text')">Branch</th>
-                <th class="sortable-th" onclick="sortTable(3,'num')">Sync</th>
-                <th class="sortable-th" onclick="sortTable(4,'num')">Dirty</th>
-                <th class="sortable-th" onclick="sortTable(5,'num')">Remote</th>
-                <th class="sortable-th" onclick="sortTable(6,'num')">Last commit</th>
-                <th class="sortable-th" onclick="sortTable(7,'num')">Modified</th>
-                <th class="sortable-th" onclick="sortTable(8,'text')">Status</th>
-                <th class="sortable-th" onclick="sortTable(9,'num')">Port</th>
-                <th class="sortable-th" onclick="sortTable(10,'num')" title="catalogue.json present?">Cat</th>
-                <th class="sortable-th" onclick="sortTable(11,'num')" title="screenshot.png present?">Shot</th>
-                <th class="sortable-th" onclick="sortTable(12,'num')">Actions</th>
+                <th class="sortable-th" onclick="sortTable(2,'text')">Group</th>
+                <th class="sortable-th" onclick="sortTable(3,'text')">Branch</th>
+                <th class="sortable-th" onclick="sortTable(4,'num')">Sync</th>
+                <th class="sortable-th" onclick="sortTable(5,'num')">Dirty</th>
+                <th class="sortable-th" onclick="sortTable(6,'num')">Remote</th>
+                <th class="sortable-th" onclick="sortTable(7,'num')">Last commit</th>
+                <th class="sortable-th" onclick="sortTable(8,'num')">Modified</th>
+                <th class="sortable-th" onclick="sortTable(9,'text')">Status</th>
+                <th class="sortable-th" onclick="sortTable(10,'num')">Port</th>
+                <th class="sortable-th" onclick="sortTable(11,'num')" title="catalogue.json present?">Cat</th>
+                <th class="sortable-th" onclick="sortTable(12,'num')" title="screenshot.png present?">Shot</th>
+                <th class="sortable-th" onclick="sortTable(13,'num')">Actions</th>
             </tr></thead>
             <tbody>{rows}</tbody>
         </table>
@@ -1094,6 +1437,10 @@ def generate_html(projects: List[Dict]) -> str:
         remote_projects = []
     display_projects = display_projects + remote_projects
 
+    group_data = load_repo_groups()
+    for p in display_projects:
+        assign_sorter_group(p, group_data["by_repo"])
+
     # Public mode: keep only projects that are verifiably public on GitHub.
     # Local-only folders, private repos, and unknown-visibility repos are all
     # excluded so nothing about private work leaks into the shared file.
@@ -1103,6 +1450,14 @@ def generate_html(projects: List[Dict]) -> str:
                 return not p.get('private')
             return ((p.get('git') or {}).get('visibility')) == 'public'
         display_projects = [p for p in display_projects if _is_public(p)]
+        allowed = set()
+        for p in display_projects:
+            allowed.update(_project_name_keys(p))
+        allowed.update(public_repo_names())
+        group_data = sanitize_groups_for_public(group_data, allowed)
+        for p in display_projects:
+            anonymize_project_for_public(p)
+            assign_sorter_group(p, group_data["by_repo"])
 
     # Port registry: detect collisions (same port designated by >1 project) and
     # write a ports.json the server uses for the live Ports overview.
@@ -1176,13 +1531,59 @@ def generate_html(projects: List[Dict]) -> str:
         )
     filter_chips_html = ''.join(filter_chips)
 
+    group_chip_bits = []
+    for col in group_data.get("columns") or []:
+        cid = str(col.get("id") or "")
+        title = (col.get("title") or "Untitled").strip() or "Untitled"
+        count = sum(1 for p in display_projects if p.get("sorter_group_id") == cid)
+        if not cid or count == 0:
+            continue
+        group_chip_bits.append(
+            f'<button class="fchip" data-group="{html.escape(cid, quote=True)}" '
+            f'onclick="setGroupFilter(this,\'{_js_str(cid)}\')">'
+            f'{html.escape(title)} <span class="fchip-count">{count}</span></button>'
+        )
+    if group_chip_bits:
+        group_chips_html = (
+            '<button class="fchip active" data-group="all" onclick="setGroupFilter(this,\'all\')">All groups</button>'
+            + ''.join(group_chip_bits)
+        )
+        group_filters_block = (
+            '<div class="filter-row">'
+            '<span class="filter-row-label">Groups</span>'
+            f'<div class="filter-chips group-chips">{group_chips_html}</div>'
+            + ('' if PUBLIC_MODE else
+               '<a class="rows-hint" href="sorter.html" style="margin:6px 0 0;white-space:nowrap">Edit categories</a>')
+            + '</div>'
+        )
+    else:
+        group_filters_block = ''
+
     # Stats
     total = len(display_projects)
     with_catalogue = len([p for p in display_projects if p['has_catalogue']])
 
-    # Feed + Table views
+    # Feed + Table + sorter-category rows
     feed_html = generate_feed_html(display_projects)
-    table_html = generate_table_html(display_projects)
+    table_html = generate_table_html(display_projects, group_data.get("columns") or [])
+    group_rows_html = generate_group_rows_html(display_projects, group_data)
+    groups_json = json.dumps({
+        "colsPerRow": group_data.get("colsPerRow") or "auto",
+        "columns": group_data.get("columns") or [],
+    }, ensure_ascii=False)
+    has_group_rows = "true" if group_rows_html else "false"
+    rows_view_btn = (
+        '<button class="view-btn" data-view="rows" onclick="switchView(\'rows\')">☰ Rows</button>'
+        if group_rows_html else ""
+    )
+    rows_view_block = (
+        f'<div id="view-rows" class="view" style="display:none">'
+        f'<p class="rows-hint">Rows are the categories from the repo sorter.'
+        + ('' if PUBLIC_MODE else ' Drag ⋮⋮ to reorder. <a href="sorter.html">Edit categories</a>')
+        + '</p>'
+        f'{group_rows_html}</div>'
+        if group_rows_html else ""
+    )
 
     # Full HTML
     page = f'''<!DOCTYPE html>
@@ -1302,6 +1703,33 @@ def generate_html(projects: List[Dict]) -> str:
             font-size: 12px;
             color: rgba(255,255,255,0.8);
         }}
+
+        .row-handle {{
+            flex-shrink: 0;
+            cursor: grab;
+            color: rgba(255,255,255,0.35);
+            font-size: 14px;
+            line-height: 1;
+            letter-spacing: -1px;
+            padding: 4px 2px;
+            user-select: none;
+        }}
+        .row-handle:hover {{ color: rgba(255,255,255,0.8); }}
+        .row-handle:active {{ cursor: grabbing; }}
+        .category-row.row-dragging {{ opacity: 0.35; }}
+        .row-placeholder {{
+            height: 8px;
+            border-radius: 4px;
+            background: #667eea;
+            box-shadow: 0 0 10px rgba(102,126,234,0.6);
+            margin: 2px 0 10px;
+        }}
+        .rows-hint {{
+            font-size: 12.5px;
+            opacity: 0.6;
+            margin: 0 0 16px;
+        }}
+        .rows-hint a {{ color: #a5b4fc; }}
         
         /* Category colors */
         .cat-pinned {{ background: linear-gradient(135deg, #f6e05e 0%, #d69e2e 100%); color: #744210; }}
@@ -1696,6 +2124,13 @@ def generate_html(projects: List[Dict]) -> str:
         .chip-hardware::before{{background:var(--c-hardware);}} .chip-other::before{{background:var(--c-other);}}
         .chip-home::before{{background:var(--c-home);}} .chip-pinned::before{{background:var(--c-pinned);}}
         .chip-recent::before{{background:var(--c-recent);}} .chip-github::before{{background:var(--c-github);}}
+        .chip-group::before{{background:#667eea;}}
+        .group-pick {{
+            max-width: 160px; background:var(--surface); color:var(--text);
+            border:1px solid var(--border); border-radius:8px; padding:4px 6px;
+            font-size:12px; cursor:pointer; outline:none;
+        }}
+        .group-pick:focus {{ border-color:var(--accent); }}
         .cat-github{{--dot:var(--c-github);background:none;color:var(--text);}}
         .badge.cat-github {{ background:rgba(0,0,0,.6); color:var(--text); }}
 
@@ -1731,6 +2166,10 @@ def generate_html(projects: List[Dict]) -> str:
         .cat-hardware{{--dot:var(--c-hardware);background:none;color:var(--text);}}
         .cat-other{{--dot:var(--c-other);background:none;color:var(--text);}}
         .cat-home{{--dot:var(--c-home);background:none;color:var(--text);}}
+        .row-handle {{ color:var(--text-faint); }}
+        .row-handle:hover {{ color:var(--text); }}
+        .rows-hint {{ color:var(--text-faint); }}
+        .rows-hint a {{ color:var(--accent); }}
         .row-header .count {{ background:var(--surface); border:1px solid var(--border);
             color:var(--text-faint); padding:3px 10px; }}
 
@@ -1840,6 +2279,10 @@ def generate_html(projects: List[Dict]) -> str:
         /* ===== Single wrapping grid + toolbar (Grid view) ===== */
         .grid-toolbar {{ display:flex; align-items:center; justify-content:space-between;
             gap:14px; flex-wrap:wrap; margin-bottom:18px; }}
+        .filters-bar {{ display:flex; flex-direction:column; gap:10px; margin-bottom:16px; }}
+        .filter-row {{ display:flex; align-items:flex-start; gap:10px; flex-wrap:wrap; }}
+        .filter-row-label {{ font-size:11px; font-weight:700; letter-spacing:.04em; text-transform:uppercase;
+            opacity:.45; padding-top:8px; min-width:64px; }}
         .filter-chips {{ display:flex; gap:8px; flex-wrap:wrap; }}
         .fchip {{ border:1px solid var(--border); background:var(--surface); color:var(--text-dim);
             padding:6px 12px; border-radius:999px; font-size:12.5px; font-weight:600; cursor:pointer;
@@ -2047,12 +2490,14 @@ def generate_html(projects: List[Dict]) -> str:
                         <input type="text" id="searchInput" placeholder="Search projects…" onkeyup="filterProjects()">
                     </div>
                     <div class="view-switcher">
+                        {rows_view_btn}
                         <button class="view-btn" data-view="grid" onclick="switchView('grid')">▦ Grid</button>
                         <button class="view-btn" data-view="feed" onclick="switchView('feed')">☰ Feed</button>
                         <button class="view-btn" data-view="table" onclick="switchView('table')">▤ Table</button>
                     </div>
                     <button class="port-overview-btn" id="portsBtn" onclick="openPorts()" title="All designated ports + conflicts">🔌 Ports</button>
                     <button class="port-overview-btn newproj-btn" onclick="newProject()" title="Create a new folder in ~ and open it in Cursor">＋ New project</button>
+                    <button class="port-overview-btn" id="refreshBtn" onclick="reloadWithFreshCards()" title="Rescan local folders and git status, then reload">↻ Refresh</button>
                     <button class="port-overview-btn" id="ghRefreshBtn" onclick="refreshGithub()" title="Re-fetch your GitHub repos (incl. private)">↻ GitHub</button>
                     <button class="legend-btn" onclick="toggleLegend()" title="Show key for icons and colors">? Legend</button>
                 </div>
@@ -2107,9 +2552,18 @@ def generate_html(projects: List[Dict]) -> str:
                 </div>
             </div>
 
+            <div class="filters-bar">
+                <div class="filter-row">
+                    <span class="filter-row-label">Location</span>
+                    <div class="filter-chips loc-chips">{filter_chips_html}</div>
+                </div>
+                {group_filters_block}
+            </div>
+
+            {rows_view_block}
+
             <div id="view-grid" class="view">
                 <div class="grid-toolbar">
-                    <div class="filter-chips">{filter_chips_html}</div>
                     <div class="sort-control">
                         <label for="sortSelect">Sort</label>
                         <select id="sortSelect" onchange="sortGrid(this.value)">
@@ -2118,6 +2572,7 @@ def generate_html(projects: List[Dict]) -> str:
                             <option value="modified">Last modified</option>
                             <option value="alpha">Name A–Z</option>
                             <option value="alpha-desc">Name Z–A</option>
+                            <option value="group">Group</option>
                         </select>
                     </div>
                 </div>
@@ -2240,7 +2695,48 @@ def generate_html(projects: List[Dict]) -> str:
 
     <script>
         const isLocalServer = window.location.protocol === 'http:' && window.location.hostname === 'localhost';
+        const HAS_GROUP_ROWS = {has_group_rows};
+        const REPO_GROUPS = {groups_json};
         let mgPath = null;
+
+        function persistRepoGroups(okMsg) {{
+            if (!isLocalServer) {{
+                showNotification('Run the launcher server to save groups', 'info');
+                return Promise.resolve();
+            }}
+            const body = Object.assign({{ regenerate: false }}, REPO_GROUPS);
+            return fetch('/save-repo-groups', {{
+                method: 'POST',
+                headers: {{ 'Content-Type': 'application/json' }},
+                body: JSON.stringify(body),
+            }}).then(r => r.json()).then(d => {{
+                if (d.status === 'ok') showNotification(okMsg || 'Groups saved', 'success');
+                else showNotification(d.message || 'Could not save groups', 'error');
+                return d;
+            }}).catch(() => showNotification('Could not save groups', 'error'));
+        }}
+
+        function changeProjectGroup(sel, event) {{
+            if (event) {{ event.preventDefault(); event.stopPropagation(); }}
+            const repo = sel.getAttribute('data-repo');
+            const gid = sel.value;
+            const label = (sel.options[sel.selectedIndex] && sel.options[sel.selectedIndex].textContent) || '';
+            if (!repo || !Array.isArray(REPO_GROUPS.columns)) return;
+            REPO_GROUPS.columns.forEach(c => {{
+                c.names = (c.names || []).filter(n => n !== repo);
+            }});
+            let dest = REPO_GROUPS.columns.find(c => String(c.id) === String(gid));
+            if (!dest) dest = REPO_GROUPS.columns.find(c => c.id === 'general');
+            if (dest) dest.names.push(repo);
+            const row = sel.closest('.searchable');
+            if (row) {{
+                row.setAttribute('data-group', gid);
+                row.setAttribute('data-group-label', label);
+            }}
+            const cell = sel.closest('td');
+            if (cell) cell.setAttribute('data-sort', label.toLowerCase());
+            persistRepoGroups('Moved to ' + label);
+        }}
         
         function filterProjects() {{
             const term = document.getElementById('searchInput').value.toLowerCase().trim();
@@ -2248,10 +2744,11 @@ def generate_html(projects: List[Dict]) -> str:
                 const hay = (el.getAttribute('data-search') || '').toLowerCase();
                 el.classList.toggle('search-hidden', !!term && !hay.includes(term));
             }});
+            applyRowVisibility();
         }}
         
         function switchView(name) {{
-            ['grid', 'feed', 'table'].forEach(v => {{
+            ['rows', 'grid', 'feed', 'table'].forEach(v => {{
                 const el = document.getElementById('view-' + v);
                 if (el) el.style.display = (v === name) ? '' : 'none';
             }});
@@ -2296,15 +2793,36 @@ def generate_html(projects: List[Dict]) -> str:
             }});
         }}
         
+        let locFilter = 'all';
+        let groupFilter = 'all';
         function setFilter(btn, filter) {{
-            document.querySelectorAll('.filter-chips .fchip').forEach(b => b.classList.toggle('active', b === btn));
-            document.querySelectorAll('#cardGrid .project-card').forEach(card => {{
-                let show;
-                if (filter === 'all') show = true;
-                else if (filter === '__pinned') show = card.getAttribute('data-pinned') === 'true';
-                else if (filter === '__local') show = card.getAttribute('data-source') !== 'github';
-                else show = card.getAttribute('data-category') === filter;
-                card.classList.toggle('filter-hidden', !show);
+            locFilter = filter;
+            document.querySelectorAll('.loc-chips .fchip').forEach(b => b.classList.toggle('active', b === btn));
+            applyFilters();
+        }}
+        function setGroupFilter(btn, filter) {{
+            groupFilter = filter;
+            document.querySelectorAll('.group-chips .fchip').forEach(b => b.classList.toggle('active', b === btn));
+            applyFilters();
+        }}
+        function applyFilters() {{
+            document.querySelectorAll('.project-card, .feed-card, .table-row').forEach(el => {{
+                let locOk;
+                if (locFilter === 'all') locOk = true;
+                else if (locFilter === '__pinned') locOk = el.getAttribute('data-pinned') === 'true';
+                else if (locFilter === '__local') locOk = el.getAttribute('data-source') !== 'github';
+                else locOk = el.getAttribute('data-category') === locFilter;
+                const groupOk = groupFilter === 'all' || el.getAttribute('data-group') === groupFilter;
+                el.classList.toggle('filter-hidden', !(locOk && groupOk));
+            }});
+            applyRowVisibility();
+        }}
+        function applyRowVisibility() {{
+            document.querySelectorAll('#groupRows .category-row').forEach(row => {{
+                const gid = row.getAttribute('data-group-id') || '';
+                const groupOk = groupFilter === 'all' || gid === groupFilter;
+                const visible = row.querySelectorAll('.project-card:not(.filter-hidden):not(.search-hidden)').length;
+                row.classList.toggle('filter-hidden', !groupOk || visible === 0);
             }});
         }}
         
@@ -2318,6 +2836,7 @@ def generate_html(projects: List[Dict]) -> str:
                 switch (mode) {{
                     case 'alpha': return nm(a).localeCompare(nm(b));
                     case 'alpha-desc': return nm(b).localeCompare(nm(a));
+                    case 'group': return (a.getAttribute('data-group-label') || '').localeCompare(b.getAttribute('data-group-label') || '');
                     case 'commit': return num(b, 'data-commit') - num(a, 'data-commit');
                     case 'modified': return num(b, 'data-mtime') - num(a, 'data-mtime');
                     default: return Math.max(num(b,'data-commit'), num(b,'data-mtime'))
@@ -2696,14 +3215,101 @@ def generate_html(projects: List[Dict]) -> str:
         document.addEventListener('keydown', e => {{ if (e.key === 'Escape') {{ closeManage(); closePorts(); }} }});
         
         (function() {{
-            let v = 'grid';
+            let v = HAS_GROUP_ROWS ? 'rows' : 'grid';
             const h = (location.hash || '').replace('#', '');
-            if (['grid', 'feed', 'table'].includes(h)) {{
+            if (['rows', 'grid', 'feed', 'table'].includes(h)) {{
                 v = h;
             }} else {{
-                try {{ v = localStorage.getItem('dashboardView') || 'grid'; }} catch (e) {{}}
+                try {{
+                    const saved = localStorage.getItem('dashboardView');
+                    if (saved && ['rows', 'grid', 'feed', 'table'].includes(saved)) v = saved;
+                    else if (HAS_GROUP_ROWS) v = 'rows';
+                }} catch (e) {{}}
             }}
             switchView(v);
+        }})();
+
+        (function initRowDrag() {{
+            const wrap = document.getElementById('groupRows');
+            if (!wrap) return;
+            let draggingId = null;
+            let mark = null;
+
+            function ensureMark() {{
+                if (!mark) {{
+                    mark = document.createElement('div');
+                    mark.className = 'row-placeholder';
+                }}
+                return mark;
+            }}
+            function clearMark() {{
+                mark && mark.remove();
+                mark = null;
+                wrap.querySelectorAll('.category-row.row-dragging').forEach(r => r.classList.remove('row-dragging'));
+            }}
+            function placeMark(clientY) {{
+                const rows = [...wrap.querySelectorAll('.category-row:not(.row-dragging):not([data-locked])')];
+                let target = null;
+                for (const row of rows) {{
+                    const r = row.getBoundingClientRect();
+                    if (clientY < r.top + r.height / 2) {{
+                        target = row;
+                        break;
+                    }}
+                }}
+                const el = ensureMark();
+                if (target) wrap.insertBefore(el, target);
+                else wrap.appendChild(el);
+            }}
+            function persistOrder() {{
+                const ids = [...wrap.querySelectorAll('.category-row')].map(r => r.getAttribute('data-group-id'));
+                const byId = {{}};
+                (REPO_GROUPS.columns || []).forEach(c => {{ byId[String(c.id)] = c; }});
+                const seen = new Set();
+                const next = [];
+                ids.forEach(id => {{
+                    if (byId[id] && !seen.has(id)) {{
+                        next.push(byId[id]);
+                        seen.add(id);
+                    }}
+                }});
+                (REPO_GROUPS.columns || []).forEach(c => {{
+                    const id = String(c.id);
+                    if (!seen.has(id)) next.push(c);
+                }});
+                REPO_GROUPS.columns = next;
+                persistRepoGroups('Category order saved');
+            }}
+
+            wrap.addEventListener('dragstart', e => {{
+                const handle = e.target.closest('.row-handle');
+                if (!handle) return;
+                const row = handle.closest('.category-row');
+                draggingId = row.getAttribute('data-group-id');
+                e.dataTransfer.setData('text/plain', draggingId);
+                e.dataTransfer.effectAllowed = 'move';
+                requestAnimationFrame(() => row.classList.add('row-dragging'));
+            }});
+            wrap.addEventListener('dragend', () => {{
+                draggingId = null;
+                clearMark();
+            }});
+            wrap.addEventListener('dragover', e => {{
+                if (!draggingId) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                placeMark(e.clientY);
+            }});
+            wrap.addEventListener('drop', e => {{
+                if (!draggingId) return;
+                e.preventDefault();
+                const row = wrap.querySelector('.category-row.row-dragging');
+                const before = mark && mark.nextElementSibling;
+                clearMark();
+                if (row) wrap.insertBefore(row, before && before.parentNode === wrap ? before : null);
+                draggingId = null;
+                persistOrder();
+            }});
         }})();
         
         function openProject(path, event) {{
@@ -2959,10 +3565,29 @@ def main(argv=None):
     parser.add_argument('--public', action='store_true',
                         help="Sanitized shareable dashboard: public GitHub repos only, "
                              "no home-folder scan, no absolute paths. "
-                             f"Writes {PUBLIC_OUTPUT_FILE.name} by default.")
+                             f"Writes {PUBLIC_OUTPUT_FILE.name} by default. "
+                             "Also rewrites repos.json / repo_groups.json as public-only.")
+    parser.add_argument('--publish-json', action='store_true',
+                        help="Write public-only repos.json and repo_groups.json from "
+                             "the gitignored *.local.json files, then exit.")
     parser.add_argument('--output', type=Path, default=None,
                         help="Override the output file path.")
     args = parser.parse_args(argv)
+
+    if args.publish_json and not args.public:
+        written = write_public_identity_files()
+        print(f"🪪 Wrote public repos.json ({written['public_repos']} repos) "
+              f"and repo_groups.json ({written['public_groups']} groups)")
+        for path in (REPOS_FILE, GROUPS_FILE):
+            blocking, warnings = _check_public_leaks(path.read_text(encoding="utf-8"))
+            for w in warnings:
+                print(f"⚠️  {path.name}: {w}")
+            if blocking:
+                print(f"❌ {path.name} still has private data:")
+                for leak in blocking:
+                    print(f"   - {leak}")
+                return
+        return
 
     PUBLIC_MODE = args.public
     out_file = args.output or (PUBLIC_OUTPUT_FILE if PUBLIC_MODE else OUTPUT_FILE)
@@ -2991,8 +3616,15 @@ def main(argv=None):
     html = generate_html(projects)
 
     if PUBLIC_MODE:
+        written = write_public_identity_files()
+        print(f"🪪 Wrote public repos.json ({written['public_repos']} repos) "
+              f"and repo_groups.json ({written['public_groups']} groups)")
         html = _sanitize_public_html(html)
         blocking, warnings = _check_public_leaks(html)
+        for path in (REPOS_FILE, GROUPS_FILE):
+            extra_b, extra_w = _check_public_leaks(path.read_text(encoding="utf-8"))
+            blocking.extend(f"{path.name}: {x}" for x in extra_b)
+            warnings.extend(f"{path.name}: {x}" for x in extra_w)
         for w in warnings:
             print(f"⚠️  {w}")
         if blocking:

@@ -1,0 +1,326 @@
+{
+  "saved": "2026-08-31T12:36:13.995506",
+  "colsPerRow": "auto",
+  "public": true,
+  "columns": [
+    {
+      "id": "79f46515-fb11-44f9-870d-1772a87aeee9",
+      "title": "CommandLineTools",
+      "names": [
+        "gitBash",
+        "pdf2jpeg",
+        "Roledex"
+      ]
+    },
+    {
+      "id": "9f577ee1-5fcf-44d4-b2af-a9cec955c226",
+      "title": "Math",
+      "names": [
+        "MathPlayground",
+        "hadwigerNelson",
+        "NavierStokesEnergyLandscape",
+        "GraphColour",
+        "Luo2024Extend",
+        "CatalanQuadratic",
+        "JaneStreetDwarkeshPuzzle"
+      ]
+    },
+    {
+      "id": "4dd5cf81-be32-4641-889e-b9f9fbc02504",
+      "title": "Computational Inteligence",
+      "names": [
+        "OpticalNeuralNet",
+        "microgptJS",
+        "VisualSystemModel",
+        "HNN-AEF"
+      ]
+    },
+    {
+      "id": "f5d66641-ed53-4a28-a695-53c386c70ab2",
+      "title": "3d Print",
+      "names": [
+        "CableRack",
+        "digitalClock",
+        "NumberblockToysPrint",
+        "FibrationTorusPuzzle",
+        "hueforge-at-home",
+        "3dprint",
+        "voice2print",
+        "IllumiStack",
+        "topographicModelsFromMapWebpage"
+      ]
+    },
+    {
+      "id": "d9e0cb43-4d79-4869-ba36-ce10e65f8c1e",
+      "title": "EEG Research",
+      "names": [
+        "FreethrowEEG",
+        "voyageAnalysis",
+        "AudienceEEG",
+        "SSAEP"
+      ]
+    },
+    {
+      "id": "9862c922-2592-46be-b3ff-e624cb34ff5d",
+      "title": "Soccer",
+      "names": [
+        "artOfSoccerWar",
+        "OfTwoMindsSoccer",
+        "powerLawSoccerAnalysisPage",
+        "artOfSoccerWarPlanning"
+      ]
+    },
+    {
+      "id": "a309adad-d1a1-4820-ba8c-9fff81ae1a58",
+      "title": "WebOS Apps",
+      "names": [
+        "MusicPlayer",
+        "cursor-launcher",
+        "wifi",
+        "LaserPointer",
+        "InstaFaceReadX",
+        "GroupPaint"
+      ]
+    },
+    {
+      "id": "2ff918ce-ab15-49b8-9ac6-152432be641e",
+      "title": "Judaism",
+      "names": [
+        "cantillate"
+      ]
+    },
+    {
+      "id": "da78da71-9176-4605-a0b8-ea680b60576e",
+      "title": "Writing",
+      "names": [
+        "GhostbustersConceptPlay",
+        "BrainsMindsMachinesTextbook",
+        "ExileEnginePage",
+        "LinoleumSecretHistory"
+      ]
+    },
+    {
+      "id": "248a2527-6776-4522-9069-62c1f932a577",
+      "title": "Research",
+      "names": [
+        "375Data_2020",
+        "FitnessMemory",
+        "webcamHR",
+        "matlab_video_hr",
+        "Mathewson2009",
+        "MoralWordEEG"
+      ]
+    },
+    {
+      "id": "e7d41b87-3b82-48f7-9e1c-cc0fb4967bb4",
+      "title": "Teaching",
+      "names": [
+        "Talk",
+        "NeuroimagingClass"
+      ]
+    },
+    {
+      "id": "40af4b0e-c199-468d-81e4-3c8ab0394248",
+      "title": "WebAnimation",
+      "names": [
+        "BouncyBalls",
+        "ReactionDiffusionMaze",
+        "microphoneSpectroramWebpage",
+        "accGyro",
+        "FractalViewerWebpage",
+        "sunMoon"
+      ]
+    },
+    {
+      "id": "2db63981-a036-417f-b7e0-ebb670aeb2b2",
+      "title": "WebTools",
+      "names": [
+        "diagramRevamp",
+        "pdfTiles",
+        "ModernWebDesign",
+        "MidiRapper",
+        "abcovid",
+        "YoutubeMusicAlbumFilterChromePlugin"
+      ]
+    },
+    {
+      "id": "d4dc7a52-3bc8-43b7-a591-a1938a659e62",
+      "title": "WebEEG",
+      "names": [
+        "faceoff",
+        "Brainimation",
+        "p5.eegedu.art",
+        "BrainGames",
+        "EEG-FPS-Game",
+        "p5.eegedu",
+        "EEGVideo",
+        "muse-js",
+        "EEGEdu"
+      ]
+    },
+    {
+      "id": "8da48248-af02-4745-91b9-c6ba36a7c5df",
+      "title": "ArtColabs",
+      "names": [
+        "reConstruction",
+        "StoryTrees3",
+        "WhisperingPines",
+        "StoryTrees2",
+        "Apparition"
+      ]
+    },
+    {
+      "id": "b0b88b59-b310-437d-a5eb-5704779863fb",
+      "title": "Games",
+      "names": [
+        "NumberBlocks",
+        "soccerSimV2Physics",
+        "shooterFocus",
+        "soccerSim",
+        "BrainCraft",
+        "react-game-kit",
+        "ClashRoyale",
+        "Mario-Kart-3.js"
+      ]
+    },
+    {
+      "id": "a55d2324-faaf-47b0-abaf-fc87c035965b",
+      "title": "DeepLearningPages",
+      "names": [
+        "FlowFinding",
+        "ConciousnessTheoryCompareWebpage",
+        "StokesFluidDynamics",
+        "biophotons",
+        "flir"
+      ]
+    },
+    {
+      "id": "f579b876-e26f-473c-ac80-1569cb5d72aa",
+      "title": "MagicSquares",
+      "names": [
+        "magicGemWeb",
+        "MagicGemWebpage"
+      ]
+    },
+    {
+      "id": "dd06c076-4a45-4b20-b905-84896277a41a",
+      "title": "Finances",
+      "names": [
+        "pickingTVWebpage",
+        "cryptoMemeCoinMint"
+      ]
+    },
+    {
+      "id": "cf837411-f5ae-4218-aa6b-d0eecb4bb136",
+      "title": "Consulting",
+      "names": [
+        "HistoricGlenoraMapWebpage",
+        "pycovid",
+        "Genes"
+      ]
+    },
+    {
+      "id": "c50dae4c-8449-484b-8179-e65822d78beb",
+      "title": "Productivity",
+      "names": [
+        "homePage",
+        "todoManager",
+        "gmailPower",
+        "garmin_graphs"
+      ]
+    },
+    {
+      "id": "5fbeae31-ab06-4fcd-8f74-53eabb712982",
+      "title": "GenerativeAI",
+      "names": [
+        "Generation",
+        "Sora",
+        "ml4a-guides",
+        "face2face-demo",
+        "ml4a.github.io",
+        "Pyggy"
+      ]
+    },
+    {
+      "id": "1d555948-d7ac-4b3f-a70b-93120e5628c8",
+      "title": "ComputingScience",
+      "names": [
+        "collisionDetectionForcefield",
+        "WordSelectionLLM",
+        "GALM",
+        "InterpretCognates",
+        "topologicalDataAnalysisBiology"
+      ]
+    },
+    {
+      "id": "32a3aa37-015b-47a7-963a-6cd757ecd339",
+      "title": "PsychExperiment",
+      "names": [
+        "matlab_Psychtoolbox_course",
+        "pytutorial",
+        "psych403_Fall2022",
+        "vispy"
+      ]
+    },
+    {
+      "id": "0bb534b2-0ed3-4417-8145-24cc4891b80b",
+      "title": "Stroke EEG",
+      "names": [
+        "strokeEEG",
+        "MaestroEEGApp",
+        "StrokeMuseTestAnalysis"
+      ]
+    },
+    {
+      "id": "a079e253-2a2d-4bd4-8c6a-94fbcb2bfb97",
+      "title": "Optical imaging",
+      "names": [
+        "pyoptical",
+        "RetinotopyMatlabCode",
+        "nomad"
+      ]
+    },
+    {
+      "id": "00918bba-d27e-44d3-ae6d-b4d00bcdbc33",
+      "title": "Illusions",
+      "names": [
+        "cross_colour",
+        "necker_move",
+        "micb",
+        "visual-illusions",
+        "DuckBunny2"
+      ]
+    },
+    {
+      "id": "11c02266-a9a9-4174-9394-3b97dbb71bcf",
+      "title": "EEGTools",
+      "names": [
+        "muse_osc",
+        "mne-python",
+        "EEG-Classification",
+        "Muse-LSL-Matlab-Tools",
+        "fooof",
+        "pyERP",
+        "Muse_LSL_Environments",
+        "eeg-notebooks",
+        "DeepEEG",
+        "eeg-notebooks_v0.1",
+        "muse-lsl",
+        "MathewsonMatlabTools"
+      ]
+    },
+    {
+      "id": "014343b3-863a-4ebb-bf36-0ddd68304995",
+      "title": "TeachingTools",
+      "names": [
+        "Slides4Class",
+        "TimeFreqWorkshop"
+      ]
+    },
+    {
+      "id": "general",
+      "title": "General",
+      "names": []
+    }
+  ]
+}

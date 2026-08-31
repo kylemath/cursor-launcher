@@ -391,6 +391,50 @@ class CursorLauncherHandler(http.server.SimpleHTTPRequestHandler):
             except Exception as e:
                 self.send_json_response(500, {"status": "error", "message": str(e)})
             return
+        if parsed.path == '/save-repo-groups':
+            try:
+                length = int(self.headers.get('Content-Length', 0))
+                body = self.rfile.read(length) if length else b'{}'
+                payload = json.loads(body.decode('utf-8'))
+                columns = payload.get('columns')
+                if not isinstance(columns, list):
+                    self.send_json_response(400, {"status": "error", "message": "columns must be a list"})
+                    return
+                cleaned = []
+                seen = set()
+                for col in columns:
+                    if not isinstance(col, dict):
+                        continue
+                    names = []
+                    for n in col.get('names') or []:
+                        if isinstance(n, str) and n and n not in seen:
+                            seen.add(n)
+                            names.append(n)
+                    cleaned.append({
+                        'id': str(col.get('id') or '') or 'untitled',
+                        'title': (str(col.get('title') or 'Untitled').strip() or 'Untitled'),
+                        'names': names,
+                    })
+                out = DASHBOARD_DIR / 'repo_groups.local.json'
+                data = {
+                    'saved': datetime.now().isoformat(),
+                    'colsPerRow': str(payload.get('colsPerRow') or 'auto'),
+                    'columns': cleaned,
+                }
+                out.write_text(json.dumps(data, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
+                print(f"💾 Saved repo_groups.local.json ({len(cleaned)} groups)")
+                regenerated = False
+                if payload.get('regenerate', True):
+                    regenerated = self.regenerate_dashboard()
+                self.send_json_response(200, {
+                    "status": "ok",
+                    "file": str(out),
+                    "group_count": len(cleaned),
+                    "regenerated": regenerated,
+                })
+            except Exception as e:
+                self.send_json_response(500, {"status": "error", "message": str(e)})
+            return
         self.send_json_response(404, {"status": "error", "message": "Unknown endpoint"})
 
     def _port_pids(self, port):
@@ -738,7 +782,7 @@ class CursorLauncherHandler(http.server.SimpleHTTPRequestHandler):
                    ('/open-in-cursor', '/launch-app', '/stop-app', '/open-both',
                     '/app-status', '/status', '/ports', '/suggest-port',
                     '/project-info', '/open-file', '/capture-screenshot',
-                    '/screenshot-file', '/save-catalogue', '/shutdown',
+                    '/screenshot-file', '/save-catalogue', '/save-repo-groups', '/shutdown',
                     '/autogen-catalogue', '/clone-repo', '/new-project',
                     '/refresh-github', '/regenerate-dashboard')):
                 return  # Don't log API calls

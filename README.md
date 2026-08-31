@@ -128,8 +128,14 @@ launcher adds an optional `server` block:
 - `server_launcher.py` — resolves and runs each project's dev server.
 - `extension/` — Cursor / VS Code companion: status-bar **▶ Run :PORT**.
 - `CursorLauncher.app` — Dock launcher (regenerate + server + browser).
+- `sorter.html` — drag-and-drop repo groups. Saves to `repo_groups.local.json`.
+- `repos.json` / `repo_groups.json` — **public-only** lists, safe to commit.
+  Full lists (including private names) live in gitignored `*.local.json`.
+  Refresh with `python3 github_repos.py export-repos` and
+  `python3 generate_dashboard.py --publish-json`.
 - Runtime (git-ignored): `running.json`, `ports.json`, `pinned.json`,
-  `recent.json`, `.visibility_cache.json`, `gh_assets/`, `logs/`.
+  `recent.json`, `.visibility_cache.json`, `gh_assets/`, `logs/`,
+  `repos.local.json`, `repo_groups.local.json`.
 
 ## In-editor Run button
 

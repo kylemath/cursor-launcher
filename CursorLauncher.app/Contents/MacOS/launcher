@@ -1,14 +1,62 @@
 #!/bin/bash
 # Cursor Project Launcher — Dock App
+# Works from the repo copy or from /Applications after the folder moves.
 
-# The .app bundle lives inside the project folder, so derive the project
-# directory from this script's own location (works for any user/machine).
-PROJECT_DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
+BUNDLE_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
+POINTER="$HOME/.cursor-launcher-dir"
 PORT=8847
-LOG="$PROJECT_DIR/.app-launcher.log"
 
+find_project() {
+  # 1. .app still lives inside the project (next to server.py)
+  local sibling
+  sibling="$(cd "$BUNDLE_DIR/.." && pwd)"
+  if [ -f "$sibling/server.py" ]; then
+    echo "$sibling"
+    return 0
+  fi
+
+  # 2. Last known location (survives copy-to-/Applications and folder moves)
+  if [ -f "$POINTER" ]; then
+    local stored
+    stored=$(cat "$POINTER" 2>/dev/null)
+    if [ -n "$stored" ] && [ -f "$stored/server.py" ]; then
+      echo "$stored"
+      return 0
+    fi
+  fi
+
+  # 3. Common places this repo has lived
+  local candidate
+  for candidate in \
+    "$HOME/cursor-launcher" \
+    "$HOME/Coding/TOOLS/cursor-launcher" \
+    "$HOME/Coding/cursor-launcher"; do
+    if [ -f "$candidate/server.py" ]; then
+      echo "$candidate"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+PROJECT_DIR="$(find_project)" || true
+
+if [ -z "$PROJECT_DIR" ] || [ ! -f "$PROJECT_DIR/server.py" ]; then
+  osascript -e 'display dialog "Could not find the cursor-launcher project.
+
+Put the repo at ~/cursor-launcher, or keep CursorLauncher.app inside the project folder and launch it once from there." with title "Cursor Launcher" buttons {"OK"} default button "OK" with icon stop'
+  exit 1
+fi
+
+# Remember this location so a Dock /Applications pin keeps working
+printf '%s\n' "$PROJECT_DIR" > "$POINTER"
+
+LOG="$PROJECT_DIR/.app-launcher.log"
 exec > "$LOG" 2>&1
 echo "=== Cursor Launcher started at $(date) ==="
+echo "BUNDLE_DIR: $BUNDLE_DIR"
+echo "PROJECT_DIR: $PROJECT_DIR"
 
 # ---------- Find a real Python 3 (not the Xcode stub) ----------
 PY=""
@@ -17,7 +65,7 @@ for candidate in \
     "/opt/homebrew/bin/python3" \
     "/usr/local/bin/python3" \
     "/usr/bin/python3"; do
-    if "$candidate" -c "import http.server" 2>/dev/null; then
+    if [ -x "$candidate" ] && "$candidate" -c "import http.server" 2>/dev/null; then
         PY="$candidate"
         break
     fi
@@ -54,7 +102,7 @@ echo "Server PID: $SERVER_PID"
 # ---------- Wait until accepting connections (up to 15s) ----------
 for i in $(seq 1 30); do
     if curl -s "http://localhost:$PORT/" -o /dev/null 2>/dev/null; then
-        echo "Server ready after ~$((i/2))s"
+        echo "Server ready after ~$((i / 2))s"
         break
     fi
     sleep 0.5

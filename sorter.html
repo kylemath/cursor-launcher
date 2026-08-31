@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Repo Sorter</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        html, body { height: 100%; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 12px 24px 10px;
+            flex-wrap: wrap;
+            flex-shrink: 0;
+        }
+
+        header h1 {
+            font-size: 22px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        header p { font-size: 13px; opacity: 0.65; }
+
+        .hint { margin-left: auto; font-size: 12px; opacity: 0.5; }
+
+        .layout-ctrl {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            opacity: 0.8;
+        }
+
+        .layout-ctrl select {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 8px;
+            padding: 4px 8px;
+            font-size: 12px;
+            outline: none;
+        }
+
+        .layout-ctrl select:focus { box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.5); }
+
+        .error {
+            margin: 0 24px 12px;
+            padding: 10px 14px;
+            background: rgba(220, 80, 80, 0.2);
+            border: 1px solid rgba(220, 80, 80, 0.4);
+            border-radius: 8px;
+            font-size: 13px;
+        }
+
+        .workspace {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            gap: 14px;
+            padding: 6px 24px 20px;
+        }
+
+        .general-pane {
+            flex: 0 0 280px;
+            width: 280px;
+            min-width: 220px;
+            min-height: 0;
+            display: flex;
+        }
+
+        .general-pane .column {
+            flex: 1;
+            height: 100%;
+            min-height: 0;
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.16);
+            box-shadow: 0 8px 28px rgba(0, 0, 0, 0.25);
+        }
+
+        .board {
+            flex: 1;
+            min-width: 0;
+            min-height: 0;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            grid-auto-rows: minmax(170px, 1fr);
+            gap: 12px;
+            overflow: auto;
+        }
+
+        .column {
+            min-width: 0;
+            min-height: 170px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            transition: border-color 0.15s, background 0.15s;
+        }
+
+        .column.drag-over {
+            border-color: #667eea;
+            background: rgba(102, 126, 234, 0.12);
+        }
+
+        .col-head {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 10px 8px 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            flex-shrink: 0;
+        }
+
+        .col-title {
+            flex: 1;
+            font-size: 14px;
+            font-weight: 600;
+            outline: none;
+            border-radius: 4px;
+            padding: 2px 4px;
+            min-width: 0;
+        }
+
+        .col-title:focus {
+            background: rgba(255, 255, 255, 0.1);
+            box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.5);
+        }
+
+        .count {
+            font-size: 11px;
+            opacity: 0.5;
+            flex-shrink: 0;
+        }
+
+        .col-delete {
+            border: none;
+            background: transparent;
+            color: rgba(255, 255, 255, 0.35);
+            cursor: pointer;
+            font-size: 16px;
+            line-height: 1;
+            padding: 2px 4px;
+            border-radius: 4px;
+        }
+
+        .col-delete:hover { color: #ff8a8a; background: rgba(255, 80, 80, 0.15); }
+
+        .col-handle {
+            flex-shrink: 0;
+            cursor: grab;
+            color: rgba(255, 255, 255, 0.32);
+            font-size: 13px;
+            line-height: 1;
+            letter-spacing: -1px;
+            padding: 3px 4px 3px 0;
+            user-select: none;
+        }
+
+        .col-handle:hover { color: rgba(255, 255, 255, 0.75); }
+        .col-handle:active { cursor: grabbing; }
+
+        .column.col-dragging { opacity: 0.35; }
+
+        .col-placeholder {
+            min-height: 170px;
+            height: 100%;
+            border: 2px dashed #667eea;
+            border-radius: 12px;
+            background: rgba(102, 126, 234, 0.12);
+            box-shadow: inset 0 0 0 1px rgba(102, 126, 234, 0.25);
+        }
+
+        .list {
+            flex: 1;
+            overflow-y: auto;
+            min-height: 80px;
+            padding: 8px;
+        }
+
+        .repo {
+            padding: 7px 10px;
+            margin-bottom: 4px;
+            border-radius: 7px;
+            background: rgba(255, 255, 255, 0.07);
+            cursor: grab;
+            user-select: none;
+            font-size: 13px;
+            line-height: 1.3;
+            border: 1px solid transparent;
+            display: flex;
+            align-items: baseline;
+            gap: 6px;
+        }
+
+        .repo:hover { background: rgba(255, 255, 255, 0.12); }
+        .repo.selected {
+            border-color: #667eea;
+            background: rgba(102, 126, 234, 0.28);
+        }
+        .repo.dragging { opacity: 0.3; }
+        .repo:active { cursor: grabbing; }
+
+        .repo-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .vis {
+            flex-shrink: 0;
+            font-size: 10px;
+            opacity: 0.45;
+        }
+
+        .placeholder {
+            height: 4px;
+            margin: 2px 0 6px;
+            border-radius: 2px;
+            background: #667eea;
+            box-shadow: 0 0 8px rgba(102, 126, 234, 0.7);
+        }
+
+        .add-col {
+            min-height: 170px;
+            height: 100%;
+            border: 1px dashed rgba(255, 255, 255, 0.25);
+            border-radius: 12px;
+            background: transparent;
+            color: rgba(255, 255, 255, 0.55);
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .add-col:hover {
+            border-color: #667eea;
+            color: #fff;
+            background: rgba(102, 126, 234, 0.12);
+        }
+
+        .save-btn {
+            border: none;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            font-size: 13px;
+            font-weight: 600;
+            padding: 7px 14px;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .save-btn:hover { filter: brightness(1.1); }
+        .save-btn:disabled { opacity: 0.55; cursor: default; }
+        .save-status { font-size: 12px; opacity: 0.7; min-width: 8em; }
+
+        .drag-ghost {
+            position: absolute;
+            top: -9999px;
+            left: -9999px;
+            padding: 8px 14px;
+            border-radius: 8px;
+            background: #667eea;
+            color: #fff;
+            font-size: 13px;
+            font-weight: 600;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Repo sorter</h1>
+        <p>Drag names into columns, or drag ⋮⋮ to reorder categories. Ctrl/⌘-click selects several.</p>
+        <label class="layout-ctrl">
+            Columns per row
+            <select id="cols-per-row">
+                <option value="auto">Auto</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+                <option value="5">5</option>
+                <option value="6">6</option>
+                <option value="7">7</option>
+                <option value="8">8</option>
+            </select>
+        </label>
+        <button type="button" class="save-btn" id="save-btn">Save for launcher</button>
+        <span class="save-status" id="save-status"></span>
+        <span class="hint">Drag ⋮⋮ to reorder categories · headers are editable · Save updates the dashboard</span>
+    </header>
+    <div id="error" class="error" hidden></div>
+    <div class="workspace" id="workspace">
+        <div class="general-pane" id="general-pane"></div>
+        <div class="board" id="board"></div>
+    </div>
+
+    <script>
+        const STORAGE_KEY = "repo-sorter-v1";
+        const GENERAL_ID = "general";
+
+        let reposByName = {};
+        let columns = [];
+        let colsPerRow = "auto";
+        let selected = new Set();
+        let dragging = [];
+        let draggingColumnId = null;
+        let placeholder = null;
+        let colPlaceholder = null;
+
+        const workspace = document.getElementById("workspace");
+        const generalPane = document.getElementById("general-pane");
+        const board = document.getElementById("board");
+        const errorEl = document.getElementById("error");
+        const colsSelect = document.getElementById("cols-per-row");
+        const saveBtn = document.getElementById("save-btn");
+        const saveStatus = document.getElementById("save-status");
+
+        function showError(msg) {
+            errorEl.hidden = !msg;
+            errorEl.textContent = msg || "";
+        }
+
+        function payload() {
+            return {
+                colsPerRow,
+                columns: columns.map((c) => ({
+                    id: c.id,
+                    title: c.title,
+                    names: c.names.slice(),
+                })),
+            };
+        }
+
+        function save() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(payload()));
+        }
+
+        let saveTimer = null;
+        function scheduleLauncherSave() {
+            save();
+            clearTimeout(saveTimer);
+            saveTimer = setTimeout(() => saveToLauncher(false, false), 700);
+        }
+
+        async function saveToLauncher(notify, regenerate) {
+            save();
+            saveBtn.disabled = true;
+            if (notify) saveStatus.textContent = "Saving…";
+            try {
+                const res = await fetch("/save-repo-groups", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(Object.assign(payload(), {
+                        regenerate: regenerate !== false,
+                    })),
+                });
+                const data = await res.json();
+                if (!res.ok || data.status !== "ok") {
+                    throw new Error(data.message || `Save failed (${res.status})`);
+                }
+                saveStatus.textContent = notify
+                    ? `Saved ${data.group_count || columns.length} groups for the launcher`
+                    : "Saved for launcher";
+            } catch (err) {
+                saveStatus.textContent = notify
+                    ? (err && err.message ? err.message : "Could not save (is the launcher server running?)")
+                    : "";
+            } finally {
+                saveBtn.disabled = false;
+            }
+        }
+
+        function applyLayout() {
+            if (colsPerRow === "auto") {
+                board.style.gridTemplateColumns = "repeat(auto-fill, minmax(220px, 1fr))";
+            } else {
+                board.style.gridTemplateColumns = `repeat(${colsPerRow}, minmax(0, 1fr))`;
+            }
+        }
+
+        function columnsFromSaved(parsed, repos) {
+            const fallback = [{
+                id: GENERAL_ID,
+                title: "General",
+                names: repos.map((r) => r.name),
+            }];
+            if (!parsed || !Array.isArray(parsed.columns)) return fallback;
+            const seen = new Set();
+            const cols = parsed.columns.map((c) => ({
+                id: c.id,
+                title: c.title || "Untitled",
+                names: (c.names || []).filter((n) => {
+                    if (!reposByName[n] || seen.has(n)) return false;
+                    seen.add(n);
+                    return true;
+                }),
+            }));
+            let general = cols.find((c) => c.id === GENERAL_ID);
+            if (!general) {
+                general = { id: GENERAL_ID, title: "General", names: [] };
+                cols.unshift(general);
+            }
+            for (const repo of repos) {
+                if (!seen.has(repo.name)) general.names.push(repo.name);
+            }
+            if (parsed.colsPerRow) colsPerRow = String(parsed.colsPerRow);
+            return cols.length ? cols : fallback;
+        }
+
+        function groupedCount(parsed) {
+            if (!parsed || !Array.isArray(parsed.columns)) return 0;
+            return parsed.columns.filter((c) => c.id !== GENERAL_ID && (c.names || []).length).length;
+        }
+
+        function readLocalSaved() {
+            try {
+                return JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
+            } catch {
+                return null;
+            }
+        }
+
+        async function fetchFirstJson(urls) {
+            for (const url of urls) {
+                try {
+                    const res = await fetch(url, { cache: "no-store" });
+                    if (res.ok) return await res.json();
+                } catch {
+                    /* try the next path */
+                }
+            }
+            return null;
+        }
+
+        async function readFileSaved() {
+            return fetchFirstJson(["repo_groups.local.json", "repo_groups.json"]);
+        }
+
+        function loadColumns(repos, fileSaved, localSaved) {
+            if (fileSaved && Array.isArray(fileSaved.columns) && fileSaved.columns.length) {
+                return columnsFromSaved(fileSaved, repos);
+            }
+            return columnsFromSaved(localSaved, repos);
+        }
+
+        function findRepoEl(name) {
+            return workspace.querySelector(`.repo[data-name="${CSS.escape(name)}"]`);
+        }
+
+        function paintSelection() {
+            for (const el of workspace.querySelectorAll(".repo")) {
+                el.classList.toggle("selected", selected.has(el.dataset.name));
+            }
+        }
+
+        function ensurePlaceholder() {
+            if (!placeholder) {
+                placeholder = document.createElement("div");
+                placeholder.className = "placeholder";
+            }
+            return placeholder;
+        }
+
+        function clearPlaceholder() {
+            placeholder?.remove();
+            placeholder = null;
+            colPlaceholder?.remove();
+            colPlaceholder = null;
+            for (const col of workspace.querySelectorAll(".column")) {
+                col.classList.remove("drag-over", "col-dragging");
+            }
+        }
+
+        function ensureColPlaceholder() {
+            if (!colPlaceholder) {
+                colPlaceholder = document.createElement("div");
+                colPlaceholder.className = "col-placeholder";
+            }
+            return colPlaceholder;
+        }
+
+        function nextBoardSlot(el) {
+            let next = el;
+            while (next && (next === colPlaceholder || next.classList.contains("col-dragging"))) {
+                next = next.nextElementSibling;
+            }
+            return next;
+        }
+
+        function placeColumnPlaceholder(clientX, clientY) {
+            const mark = ensureColPlaceholder();
+            const addBtn = board.querySelector(".add-col");
+            const cols = [...board.querySelectorAll(".column:not(.col-dragging)")];
+            let target = addBtn;
+            let matchedRow = false;
+
+            for (const col of cols) {
+                const r = col.getBoundingClientRect();
+                if (clientY < r.top - 8 || clientY > r.bottom + 8) continue;
+                matchedRow = true;
+                if (clientX < r.left + r.width / 2) {
+                    target = col;
+                    break;
+                }
+                target = nextBoardSlot(col.nextElementSibling) || addBtn;
+            }
+
+            if (!matchedRow && cols.length) {
+                let best = null;
+                let bestD = Infinity;
+                for (const col of cols) {
+                    const r = col.getBoundingClientRect();
+                    const dx = clientX - (r.left + r.width / 2);
+                    const dy = clientY - (r.top + r.height / 2);
+                    const d = dx * dx + dy * dy;
+                    if (d < bestD) {
+                        bestD = d;
+                        best = col;
+                    }
+                }
+                if (best) {
+                    const r = best.getBoundingClientRect();
+                    target = clientX < r.left + r.width / 2
+                        ? best
+                        : (nextBoardSlot(best.nextElementSibling) || addBtn);
+                }
+            }
+
+            if (target === mark) return;
+            if (mark.parentNode === board && mark.nextElementSibling === target) return;
+            board.insertBefore(mark, target);
+        }
+
+        function moveColumn(id, beforeId) {
+            if (id === GENERAL_ID) return;
+            const from = columns.findIndex((c) => c.id === id);
+            if (from < 0) return;
+            const [col] = columns.splice(from, 1);
+            let to = beforeId ? columns.findIndex((c) => c.id === beforeId) : columns.length;
+            if (to < 0) to = columns.length;
+            columns.splice(to, 0, col);
+            scheduleLauncherSave();
+            render();
+        }
+
+        function dropAnchor(list, clientY) {
+            const items = [...list.querySelectorAll(".repo:not(.dragging)")];
+            for (const item of items) {
+                const rect = item.getBoundingClientRect();
+                if (clientY < rect.top + rect.height / 2) return item;
+            }
+            return null;
+        }
+
+        function moveRepos(names, destId, beforeName) {
+            const moving = new Set(names);
+            for (const col of columns) {
+                col.names = col.names.filter((n) => !moving.has(n));
+            }
+            const dest = columns.find((c) => c.id === destId);
+            if (!dest) return;
+            let idx = beforeName ? dest.names.indexOf(beforeName) : dest.names.length;
+            if (idx < 0) idx = dest.names.length;
+            dest.names.splice(idx, 0, ...names);
+            scheduleLauncherSave();
+            render();
+        }
+
+        function addColumn() {
+            columns.push({
+                id: crypto.randomUUID(),
+                title: "New column",
+                names: [],
+            });
+            scheduleLauncherSave();
+            render();
+            const titles = board.querySelectorAll(".col-title");
+            const last = titles[titles.length - 1];
+            if (!last) return;
+            last.focus();
+            const range = document.createRange();
+            range.selectNodeContents(last);
+            const sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(range);
+        }
+
+        function deleteColumn(id) {
+            if (id === GENERAL_ID) return;
+            const col = columns.find((c) => c.id === id);
+            const general = columns.find((c) => c.id === GENERAL_ID);
+            if (col && general) general.names.push(...col.names);
+            columns = columns.filter((c) => c.id !== id);
+            scheduleLauncherSave();
+            render();
+        }
+
+        function buildColumn(col) {
+                const colEl = document.createElement("section");
+                colEl.className = "column";
+                colEl.dataset.id = col.id;
+
+                const head = document.createElement("div");
+                head.className = "col-head";
+
+                const title = document.createElement("div");
+                title.className = "col-title";
+                title.contentEditable = "true";
+                title.spellcheck = false;
+                title.textContent = col.title;
+                title.title = "Click to rename";
+                title.addEventListener("keydown", (e) => {
+                    if (e.key === "Enter") {
+                        e.preventDefault();
+                        title.blur();
+                    }
+                });
+                title.addEventListener("blur", () => {
+                    col.title = title.textContent.trim() || "Untitled";
+                    title.textContent = col.title;
+                    scheduleLauncherSave();
+                });
+
+                const count = document.createElement("span");
+                count.className = "count";
+                count.textContent = String(col.names.length);
+
+                if (col.id !== GENERAL_ID) {
+                    const handle = document.createElement("span");
+                    handle.className = "col-handle";
+                    handle.draggable = true;
+                    handle.title = "Drag to reorder this category";
+                    handle.textContent = "⋮⋮";
+                    handle.addEventListener("mousedown", (e) => e.stopPropagation());
+                    head.append(handle);
+                }
+
+                head.append(title, count);
+                if (col.id !== GENERAL_ID) {
+                    const del = document.createElement("button");
+                    del.className = "col-delete";
+                    del.type = "button";
+                    del.title = "Remove column (repos return to General)";
+                    del.textContent = "×";
+                    del.addEventListener("click", () => deleteColumn(col.id));
+                    head.append(del);
+                }
+
+                const list = document.createElement("div");
+                list.className = "list";
+
+                for (const name of col.names) {
+                    const repo = reposByName[name];
+                    if (!repo) continue;
+                    const item = document.createElement("div");
+                    item.className = "repo";
+                    item.draggable = true;
+                    item.dataset.name = name;
+                    if (selected.has(name)) item.classList.add("selected");
+                    item.title = repo.description || name;
+
+                    const vis = document.createElement("span");
+                    vis.className = "vis";
+                    vis.textContent = repo.visibility === "private" ? "🔒" : "🌐";
+
+                    const label = document.createElement("span");
+                    label.className = "repo-name";
+                    label.textContent = name;
+
+                    item.append(vis, label);
+                    list.append(item);
+                }
+
+                colEl.append(head, list);
+            return colEl;
+        }
+
+        function render() {
+            clearPlaceholder();
+            generalPane.replaceChildren();
+            board.replaceChildren();
+
+            const general = columns.find((c) => c.id === GENERAL_ID);
+            if (general) generalPane.append(buildColumn(general));
+
+            for (const col of columns) {
+                if (col.id === GENERAL_ID) continue;
+                board.append(buildColumn(col));
+            }
+
+            const addBtn = document.createElement("button");
+            addBtn.className = "add-col";
+            addBtn.type = "button";
+            addBtn.textContent = "+ New column";
+            addBtn.addEventListener("click", addColumn);
+            board.append(addBtn);
+        }
+
+        workspace.addEventListener("click", (e) => {
+            const item = e.target.closest(".repo");
+            if (!item) {
+                if (!e.target.closest(".col-title") && !e.target.closest(".col-delete")) {
+                    selected.clear();
+                    paintSelection();
+                }
+                return;
+            }
+            const name = item.dataset.name;
+            if (e.ctrlKey || e.metaKey) {
+                e.preventDefault();
+                if (selected.has(name)) selected.delete(name);
+                else selected.add(name);
+                paintSelection();
+                return;
+            }
+        });
+
+        workspace.addEventListener("mousedown", (e) => {
+            const item = e.target.closest(".repo");
+            if (!item || e.ctrlKey || e.metaKey) return;
+            const name = item.dataset.name;
+            if (!selected.has(name)) {
+                selected.clear();
+                selected.add(name);
+                paintSelection();
+            }
+        });
+
+        workspace.addEventListener("contextmenu", (e) => {
+            if (e.ctrlKey && e.target.closest(".repo")) e.preventDefault();
+        });
+
+        workspace.addEventListener("dragstart", (e) => {
+            const handle = e.target.closest(".col-handle");
+            if (handle) {
+                const colEl = handle.closest(".column");
+                draggingColumnId = colEl.dataset.id;
+                dragging = [];
+                e.dataTransfer.setData("text/plain", draggingColumnId);
+                e.dataTransfer.effectAllowed = "move";
+                const ghost = document.createElement("div");
+                ghost.className = "drag-ghost";
+                ghost.textContent = colEl.querySelector(".col-title")?.textContent || "Column";
+                document.body.appendChild(ghost);
+                e.dataTransfer.setDragImage(ghost, 16, 16);
+                requestAnimationFrame(() => {
+                    ghost.remove();
+                    colEl.classList.add("col-dragging");
+                });
+                return;
+            }
+            const item = e.target.closest(".repo");
+            if (!item) return;
+            const name = item.dataset.name;
+            if (selected.has(name) && selected.size > 1) {
+                dragging = [...workspace.querySelectorAll(".repo.selected")].map((el) => el.dataset.name);
+            } else {
+                selected.clear();
+                selected.add(name);
+                dragging = [name];
+                paintSelection();
+            }
+            e.dataTransfer.setData("text/plain", dragging.join("\n"));
+            e.dataTransfer.effectAllowed = "move";
+
+            const ghost = document.createElement("div");
+            ghost.className = "drag-ghost";
+            ghost.textContent = dragging.length > 1 ? `${dragging.length} repos` : name;
+            document.body.appendChild(ghost);
+            e.dataTransfer.setDragImage(ghost, 16, 16);
+            requestAnimationFrame(() => ghost.remove());
+
+            requestAnimationFrame(() => {
+                for (const n of dragging) findRepoEl(n)?.classList.add("dragging");
+            });
+        });
+
+        workspace.addEventListener("dragend", () => {
+            dragging = [];
+            draggingColumnId = null;
+            clearPlaceholder();
+            for (const el of workspace.querySelectorAll(".repo.dragging")) {
+                el.classList.remove("dragging");
+            }
+        });
+
+        workspace.addEventListener("dragover", (e) => {
+            if (draggingColumnId) {
+                if (!board.contains(e.target)) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "move";
+                placeColumnPlaceholder(e.clientX, e.clientY);
+                return;
+            }
+            const colEl = e.target.closest(".column");
+            if (!colEl || !dragging.length) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "move";
+            for (const col of workspace.querySelectorAll(".column")) {
+                col.classList.toggle("drag-over", col === colEl);
+            }
+            const list = colEl.querySelector(".list");
+            const before = dropAnchor(list, e.clientY);
+            const mark = ensurePlaceholder();
+            if (before) list.insertBefore(mark, before);
+            else list.appendChild(mark);
+        });
+
+        workspace.addEventListener("dragleave", (e) => {
+            const colEl = e.target.closest(".column");
+            if (!colEl) return;
+            if (colEl.contains(e.relatedTarget)) return;
+            colEl.classList.remove("drag-over");
+        });
+
+        workspace.addEventListener("drop", (e) => {
+            if (draggingColumnId) {
+                if (!board.contains(e.target) && e.target !== board) return;
+                e.preventDefault();
+                let beforeEl = colPlaceholder?.nextElementSibling;
+                while (beforeEl && !beforeEl.classList.contains("column")) {
+                    beforeEl = beforeEl.nextElementSibling;
+                }
+                const beforeId = beforeEl?.dataset.id || null;
+                const id = draggingColumnId;
+                draggingColumnId = null;
+                clearPlaceholder();
+                moveColumn(id, beforeId);
+                return;
+            }
+            const colEl = e.target.closest(".column");
+            if (!colEl || !dragging.length) return;
+            e.preventDefault();
+            const names = dragging.slice();
+            const beforeEl = placeholder?.nextElementSibling;
+            const beforeName = beforeEl?.classList.contains("repo") ? beforeEl.dataset.name : null;
+            clearPlaceholder();
+            moveRepos(names, colEl.dataset.id, beforeName);
+        });
+
+        document.addEventListener("keydown", (e) => {
+            if (e.key === "Escape") {
+                selected.clear();
+                paintSelection();
+            }
+        });
+
+        async function init() {
+            try {
+                const data = await fetchFirstJson(["repos.local.json", "repos.json"]);
+                if (!data) throw new Error("Could not load repos.local.json or repos.json");
+                const repos = data.repos || [];
+                reposByName = Object.fromEntries(repos.map((r) => [r.name, r]));
+                const localSaved = readLocalSaved();
+                const fileSaved = await readFileSaved();
+                columns = loadColumns(repos, fileSaved, localSaved);
+                colsSelect.value = colsPerRow;
+                applyLayout();
+                render();
+                save();
+                if (fileSaved && groupedCount(fileSaved)) {
+                    saveStatus.textContent = `Loaded ${columns.length} groups`;
+                } else if (groupedCount(localSaved)) {
+                    saveStatus.textContent = "Loaded browser copy — saving for launcher…";
+                    saveToLauncher(false, true);
+                } else {
+                    saveStatus.textContent = "No saved groups yet";
+                }
+            } catch (err) {
+                showError(
+                    "Could not load repos.local.json or repos.json. Serve this folder (python3 server.py) instead of opening the file directly. " +
+                    (err && err.message ? err.message : "")
+                );
+            }
+        }
+
+        colsSelect.addEventListener("change", () => {
+            colsPerRow = colsSelect.value;
+            applyLayout();
+            scheduleLauncherSave();
+        });
+
+        saveBtn.addEventListener("click", () => saveToLauncher(true, true));
+
+        init();
+    </script>
+</body>
+</html>

@@ -1,0 +1,708 @@
+{
+  "count": 140,
+  "generated": "2026-08-31",
+  "owner": "kylemath",
+  "public_count": 140,
+  "repos": [
+    {
+      "name": "MusicPlayer",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "MathPlayground",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "pdf2jpeg",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "gitBash",
+      "description": "A convenient bash script to streamline git repository initialization with GitHub integration.",
+      "visibility": "public"
+    },
+    {
+      "name": "cursor-launcher",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "hadwigerNelson",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "homePage",
+      "description": "Main homepage for kylemathewson.com and helper scripts",
+      "visibility": "public"
+    },
+    {
+      "name": "cantillate",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "BouncyBalls",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "diagramRevamp",
+      "description": "Revamp diagram",
+      "visibility": "public"
+    },
+    {
+      "name": "sunMoon",
+      "description": "3d simulation of our galaxy to scale = Web, threejs",
+      "visibility": "public"
+    },
+    {
+      "name": "pdfTiles",
+      "description": "Tile PDFs to make flyers or cards",
+      "visibility": "public"
+    },
+    {
+      "name": "Brainimation",
+      "description": "Live EEG Brain Data Meets Creative Coding  An interactive web platform that combines real-time EEG brain data from Muse headsets with P5.js creative coding, enabling anyone to create brain-controlled art and visualizations in real-time.",
+      "visibility": "public"
+    },
+    {
+      "name": "magicGemWeb",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "artOfSoccerWar",
+      "description": "A modern, interactive web guide based on Sun Tzu's \"The Art of War\" adapted for youth soccer coaches and players. Features 100 coaching principles across 13 chapters with detailed descriptions available on hover.",
+      "visibility": "public"
+    },
+    {
+      "name": "CableRack",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "Slides4Class",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "OpticalNeuralNet",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "wifi",
+      "description": "Web home security suite",
+      "visibility": "public"
+    },
+    {
+      "name": "Roledex",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "NavierStokesEnergyLandscape",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "GhostbustersConceptPlay",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "GraphColour",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "FreethrowEEG",
+      "description": "Recording EEG during freethrow basketball shooting",
+      "visibility": "public"
+    },
+    {
+      "name": "BrainGames",
+      "description": "Brains for your Games",
+      "visibility": "public"
+    },
+    {
+      "name": "EEG-FPS-Game",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "digitalClock",
+      "description": "3d printed digital clock for esphome and homeassistant",
+      "visibility": "public"
+    },
+    {
+      "name": "EEGVideo",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "NumberblockToysPrint",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "ReactionDiffusionMaze",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "LaserPointer",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "InterpretCognates",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "FibrationTorusPuzzle",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "microphoneSpectroramWebpage",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "accGyro",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "OfTwoMindsSoccer",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "Luo2024Extend",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "microgptJS",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "Talk",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "ConciousnessTheoryCompareWebpage",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "NumberBlocks",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "FlowFinding",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "Genes",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "StrokeMuseTestAnalysis",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "GALM",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "NeuroimagingClass",
+      "description": "Class materials for 2025 403 - Neuroimaging and Neurostim",
+      "visibility": "public"
+    },
+    {
+      "name": "MaestroEEGApp",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "VisualSystemModel",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "muse-js",
+      "description": "Muse 2016 EEG Headset JavaScript Library (using Web Bluetooth)",
+      "visibility": "public"
+    },
+    {
+      "name": "soccerSimV2Physics",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "voice2print",
+      "description": "From my voice to plastic",
+      "visibility": "public"
+    },
+    {
+      "name": "IllumiStack",
+      "description": "3d Printing with Stacked colour layers web app",
+      "visibility": "public"
+    },
+    {
+      "name": "BrainsMindsMachinesTextbook",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "StokesFluidDynamics",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "biophotons",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "CatalanQuadratic",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "flir",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "EEGEdu",
+      "description": "Interactive Brain Playground - Browser based tutorials on EEG with webbluetooth and muse",
+      "visibility": "public"
+    },
+    {
+      "name": "ModernWebDesign",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "ExileEnginePage",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "LinoleumSecretHistory",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "Generation",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "MagicGemWebpage",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "shooterFocus",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "soccerSim",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "InstaFaceReadX",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "GroupPaint",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "todoManager",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "Sora",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "MidiRapper",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "collisionDetectionForcefield",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "topographicModelsFromMapWebpage",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "BrainCraft",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "ClashRoyale",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "FractalViewerWebpage",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "powerLawSoccerAnalysisPage",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "WordSelectionLLM",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "topologicalDataAnalysisBiology",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "pickingTVWebpage",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "JaneStreetDwarkeshPuzzle",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "HistoricGlenoraMapWebpage",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "cryptoMemeCoinMint",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "3dprint",
+      "description": "set of .stl files and other 3d files I find useful, no credit claimed",
+      "visibility": "public"
+    },
+    {
+      "name": "artOfSoccerWarPlanning",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "YoutubeMusicAlbumFilterChromePlugin",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "reConstruction",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "Mario-Kart-3.js",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "hueforge-at-home",
+      "description": "Basic javascript implementation of color mixing for 3d printing using p5js",
+      "visibility": "public"
+    },
+    {
+      "name": "matlab_Psychtoolbox_course",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "pyERP",
+      "description": "python ERP framework using MNE structures",
+      "visibility": "public"
+    },
+    {
+      "name": "RetinotopyMatlabCode",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "strokeEEG",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "voyageAnalysis",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "StoryTrees3",
+      "description": "Story Trees 3 - RAVEN",
+      "visibility": "public"
+    },
+    {
+      "name": "WhisperingPines",
+      "description": "Webcam Responsive AudioVisual Art",
+      "visibility": "public"
+    },
+    {
+      "name": "pytutorial",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "psych403_Fall2022",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "pyoptical",
+      "description": "Imagent optical imaging interface to MNE loading",
+      "visibility": "public"
+    },
+    {
+      "name": "DeepEEG",
+      "description": "Deep Learning with Tensor Flow for EEG MNE Epoch Objects",
+      "visibility": "public"
+    },
+    {
+      "name": "abcovid",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "375Data_2020",
+      "description": "Shared Datasets and analysis files for 375 Final Paper",
+      "visibility": "public"
+    },
+    {
+      "name": "p5.eegedu.art",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "p5.eegedu",
+      "description": "A live coding environment in p5 which includes bluetooth transmitted brain activity as input variables",
+      "visibility": "public"
+    },
+    {
+      "name": "StoryTrees2",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "webcamHR",
+      "description": "P5.js webcam HR",
+      "visibility": "public"
+    },
+    {
+      "name": "matlab_video_hr",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "Mathewson2009",
+      "description": "Phase analysis from Mathewson 2009",
+      "visibility": "public"
+    },
+    {
+      "name": "HNN-AEF",
+      "description": "Data and code to replicate the main findings associated with the manuscript “Neural Mechanisms Underlying Human Auditory Evoked Responses Revealed by Human Neocortical Neurosolver”.",
+      "visibility": "public"
+    },
+    {
+      "name": "faceoff",
+      "description": "Latent GAN State Brain Surfing",
+      "visibility": "public"
+    },
+    {
+      "name": "gmailPower",
+      "description": "Power User for Gmail",
+      "visibility": "public"
+    },
+    {
+      "name": "eeg-notebooks",
+      "description": "A collection of classic EEG experiments implemented with Python and Jupyter notebooks",
+      "visibility": "public"
+    },
+    {
+      "name": "mne-python",
+      "description": "MNE : Magnetoencephalography (MEG) and Electroencephalography (EEG) in Python",
+      "visibility": "public"
+    },
+    {
+      "name": "Apparition",
+      "description": "Apparition make a live video puppet with pix2pix based on old youtube videos",
+      "visibility": "public"
+    },
+    {
+      "name": "pycovid",
+      "description": "Python package to easily access the most updated Coronavirus data using Python/PIP",
+      "visibility": "public"
+    },
+    {
+      "name": "eeg-notebooks_v0.1",
+      "description": "A collection of classic EEG experiments implemented with Python and Jupyter notebooks",
+      "visibility": "public"
+    },
+    {
+      "name": "react-game-kit",
+      "description": "Component library for making games with React  & React Native",
+      "visibility": "public"
+    },
+    {
+      "name": "SSAEP",
+      "description": "miceeg",
+      "visibility": "public"
+    },
+    {
+      "name": "muse-lsl",
+      "description": "Python script to stream EEG data from the muse 2016 headset",
+      "visibility": "public"
+    },
+    {
+      "name": "vispy",
+      "description": "Main repository for Vispy",
+      "visibility": "public"
+    },
+    {
+      "name": "nomad",
+      "description": "Near-infrared Optical Montage Automated Design",
+      "visibility": "public"
+    },
+    {
+      "name": "MathewsonMatlabTools",
+      "description": "Toolbox of tricks, gadgets, gizmos, and automated emailers",
+      "visibility": "public"
+    },
+    {
+      "name": "cross_colour",
+      "description": "Overlay saturated crosshatch grid onto grayscale image for illusory colours",
+      "visibility": "public"
+    },
+    {
+      "name": "garmin_graphs",
+      "description": "Load in data from garmin connect and plot over time in matlab",
+      "visibility": "public"
+    },
+    {
+      "name": "TimeFreqWorkshop",
+      "description": "Presentation and code for time frequency workshop",
+      "visibility": "public"
+    },
+    {
+      "name": "ml4a-guides",
+      "description": "practical guides, tutorials, and code samples for ml4a",
+      "visibility": "public"
+    },
+    {
+      "name": "necker_move",
+      "description": "moving necker cube",
+      "visibility": "public"
+    },
+    {
+      "name": "micb",
+      "description": "Motion Induced Change Blindness - Yao, Wood, Simons 2019 - Psychtoolbox code ",
+      "visibility": "public"
+    },
+    {
+      "name": "visual-illusions",
+      "description": "Can we teach a machine to classify visual illusions and generate new ones?",
+      "visibility": "public"
+    },
+    {
+      "name": "EEG-Classification",
+      "description": "This project was a joint effort with the neurology labs at UNL and UCD Anschutz to use deep learning to classify EEG data.",
+      "visibility": "public"
+    },
+    {
+      "name": "face2face-demo",
+      "description": "pix2pix demo that learns from facial landmarks and translates this into a face",
+      "visibility": "public"
+    },
+    {
+      "name": "ml4a.github.io",
+      "description": "machine learning for artists",
+      "visibility": "public"
+    },
+    {
+      "name": "Muse_LSL_Environments",
+      "description": "A set of python environments for running MUSE LSL experiments, record data, visualize, and send markers, using Alex B. muse-lsl",
+      "visibility": "public"
+    },
+    {
+      "name": "MoralWordEEG",
+      "description": "Experiment, Materials, and Analysis code for Moral Word EEG project",
+      "visibility": "public"
+    },
+    {
+      "name": "AudienceEEG",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "Muse-LSL-Matlab-Tools",
+      "description": "chadcwilliams.weebly.com/muse",
+      "visibility": "public"
+    },
+    {
+      "name": "FitnessMemory",
+      "description": "",
+      "visibility": "public"
+    },
+    {
+      "name": "fooof",
+      "description": "Parameterizing neural power spectra",
+      "visibility": "public"
+    },
+    {
+      "name": "DuckBunny2",
+      "description": "Analysis and results for duckbunny2 project",
+      "visibility": "public"
+    },
+    {
+      "name": "muse_osc",
+      "description": "Matlab script for reading OSC stream from muse-io",
+      "visibility": "public"
+    },
+    {
+      "name": "Pyggy",
+      "description": "Artificial Improvisation",
+      "visibility": "public"
+    }
+  ]
+}
