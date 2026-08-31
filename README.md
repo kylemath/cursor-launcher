@@ -1,78 +1,105 @@
 # Cursor Project Launcher
 
-A local dashboard for all your coding projects. It scans your `~/Coding` folders
-(and home), shows every project as a card, and lets you **open it in Cursor and
-launch its dev server in one click** — plus see git status and manage ports, all
-in your browser.
+A local dashboard for coding projects. It scans `~/Coding` and `~`, shows each
+folder as a card, and lets you **open it in Cursor and launch its dev server in
+one click** — plus git status, ports, and GitHub repos that are not cloned yet.
 
-Runs locally on **http://localhost:8847**. Start it with the **Cursor Launcher**
-dock app, or run `python3 server.py` in this folder.
+Runs on **http://localhost:8847**. First run or a second machine: **[QUICKSTART.md](QUICKSTART.md)**.
+
+```bash
+python3 server.py          # regenerates the dashboard and opens the browser
+```
+
+Or double-click **CursorLauncher.app**. Stop with **⏹ Stop server** in the header,
+or `lsof -ti :8847 | xargs kill`.
 
 ---
 
-## What it's for (the use cases)
+## What it's for
 
 | You want to… | Do this |
 |---|---|
-| Quickly reopen a project you were working on | Open the dashboard → **click a card** (opens in your current Cursor window) |
-| Open a project in a separate window | **⌘/Ctrl/Shift+click** a card |
-| Run a project's web app to look at it | Click **▶ Run** on the card → server starts, opens in Chrome |
-| Open the code *and* the running app together | Click **🚀 Both** |
-| See what you were last working on / what changed | **Feed** view (newest first, with latest commit + recent changes) |
-| Compare projects across many dimensions | **Table** view (sort by branch, dirty files, last commit, port, etc.) |
-| Find a specific project | Type in the **search box**, or use the **category filter chips** |
-| Know which projects have uncommitted work | Look for the orange **●N** pill (or sort the Dirty column) |
-| Know if a repo is public or private on GitHub | The **🌐 public / 🔒 private** pill on each card |
-| Stop a dev server you left running | **Live Servers bar** at the top, or the **🔌 Ports** panel → Stop |
-| Avoid two projects fighting over the same port | **🔌 Ports** shows conflicts; use **Manage → 🎲 Suggest** for a free port |
-| Document a project for your homepage | **Manage → ✨ Auto-generate catalogue + screenshot** |
-| Understand the icons/colors | Click **? Legend** |
-
----
+| Reopen a project | Click a card (current Cursor window) |
+| Open in a separate window | **⌘ / Ctrl / Shift+click** a card |
+| Run a project's web app | **▶ Run** — starts the server, opens Chrome |
+| Code and the running app together | **🚀 Both** |
+| See what changed recently | **Feed** view |
+| Compare many projects | **Table** view (branch, dirty, remote, port, …) |
+| Find something | Search box or category chips |
+| See uncommitted work | Orange **●N** pill, or sort **Dirty** |
+| Public vs private on GitHub | **🌐 public / 🔒 private** on the card |
+| Grab a repo that is not on this machine | Dashed **☁ GitHub** card → **⬇ Clone** (lands in `~/<name>`) |
+| Stop a leftover dev server | Live Servers bar, or **🔌 Ports** → Stop |
+| Avoid port fights | **🔌 Ports**; **Manage → 🎲 Suggest** for a free port |
+| Document a project for the homepage | **Manage → ✨ Auto-generate catalogue + screenshot** |
+| Decode the icons | **? Legend** |
 
 ## The three views
 
-- **▦ Grid** — every project as a card in one wrapping list. Filter by category
-  (Tools, Research, Home…), sort by recent activity / last commit / name.
-- **☰ Feed** — a social-style feed, newest activity first: big cards with the
-  description, latest commit message + date, recent changes, and branches.
-- **▤ Table** — a sortable spreadsheet: Project, Category, Branch, Sync
-  (ahead/behind), Dirty (uncommitted count), Remote (public/private), Last
-  commit, Modified, Status, Port, **Cat** (has catalogue.json?), **Shot**
-  (has screenshot.png?), Actions.
+- **▦ Grid** — cards in one list. Filter by category (Tools, Research, Home,
+  GitHub…); sort by recent activity, last commit, or name.
+- **☰ Feed** — newest activity first: description, latest commit, recent
+  changes, branches.
+- **▤ Table** — sortable spreadsheet: Project, Category, Branch, Sync, Dirty,
+  Remote, Last commit, Modified, Status, Port, **Cat**, **Shot**, Actions.
 
 Deep links: `#grid`, `#feed`, `#table`.
 
+## How projects are organized
+
+Discovery is **this machine's folders first**, then GitHub fills gaps.
+
+| On disk | Category |
+|---|---|
+| `~/Coding/RESEARCH`, `TEACHING`, `TOOLS`, `PUZZLES`, `HARDWARE` | that name |
+| Other first-level folders under `~/Coding` | **OTHER** |
+| Top-level folders in `~` (minus system/cloud dirs) | **HOME** |
+
+Every first-level folder is a card. `catalogue.json` and `screenshot.png` are
+optional; without them you still get a title from the folder name.
+
+A local folder whose `origin` is already on GitHub stays a **local** card in
+that folder category. It is not shown again under GitHub. Local-only folders
+(no remote, or not a git repo) stay local, marked **⊘ local** or a file count.
+
+Repos on GitHub that are **not** cloned here appear as dashed **☁ GitHub**
+cards (after `gh auth login` and **↻ GitHub**). **💻 Local** is every folder
+on this disk, including ones that already have a remote. **☁ GitHub** is only
+the uncloned ones.
+
+This repo does **not** sync local-only folders or local-only git repos between
+machines. Pins, recents, and the generated dashboard are gitignored. Publishing
+a local folder to GitHub is still `git init` + `gh repo create` in a terminal.
+
 ## Git status on every card
 
-For git repos: current **branch**, **↑/↓** ahead/behind the remote, **●N**
-uncommitted files (or **✓** clean), **public/private** on GitHub, and the **last
-commit date**. For non-repos it shows a **file count** instead.
+For git repos: current **branch**, **↑/↓** vs origin, **●N** uncommitted (or
+**✓** clean), **public / private / ⊘ local**, and last commit date. For
+non-repos: a **file count**. Uncloned GitHub cards show **☁ GitHub**,
+visibility, language, and last push.
 
 ## Ports
 
-Every project's server **port** is shown as a pill. The dashboard detects
-**conflicts** (two projects on the same port) and shows live **running** state.
-The **🔌 Ports** overview lists every port, who uses it, whether it's listening
-now, and a Stop button. **🎲 Suggest** (in Manage) picks the next free,
-non-conflicting port.
+Each project's server port is a pill. The dashboard detects **conflicts** and
+live **running** state. **🔌 Ports** lists every port, who uses it, and Stop.
+**🎲 Suggest** (Manage) picks the next free, non-conflicting port.
 
-## Manage a project (⚙ on any card)
+## Manage a project (⚙ on any local card)
 
-- **Open**: in Cursor, the README, any `.md` file, or the running webpage.
-- **✨ Auto-generate catalogue + screenshot**: creates `catalogue.json` (from
-  folder name, README, git remote, and detected server) and captures a small
+- **Open**: Cursor, the README, any `.md`, or the running page.
+- **✨ Auto-generate catalogue + screenshot**: builds `catalogue.json` from
+  folder name, README, git remote, and detected server; captures a small
   `screenshot.png`.
-- **Catalogue editor**: edit title, one-liner, description, demo URL, categories,
-  tags, kind, status, and the server block. **✨ Auto-fill** suggests values.
-  Saving **merges** so homepage-only fields (demoUrl, screenshot) are preserved.
-- **📸 Capture screenshot**: starts the server, screenshots it, resizes small,
-  saves `screenshot.png` into the project.
+- **Catalogue editor**: title, one-liner, description, demo URL, categories,
+  tags, kind, status, server block. **✨ Auto-fill** suggests values. Save
+  **merges** so homepage-only fields (`demoUrl`, `screenshot`) are kept.
+- **📸 Capture screenshot**: starts the server, screenshots it, saves
+  `screenshot.png` in the project.
 
 ## catalogue.json
 
-Each project can have a `catalogue.json`. It powers the dashboard **and** the
-nightly homepage build. The launcher adds an optional `server` block:
+Optional. Powers this dashboard **and** the nightly homepage build. The
+launcher adds an optional `server` block:
 
 ```json
 {
@@ -86,34 +113,22 @@ nightly homepage build. The launcher adds an optional `server` block:
 }
 ```
 
-`server.type`: `static` (live-server or Python http.server), `node`
+`server.type`: `static` (live-server or Python `http.server`), `node`
 (`npm run dev`, Vite/Next aware), `liveserver`, `python`, or `custom` (with
-`command`). If there's no `server` block, the type is auto-detected.
-
-## The Cursor extension (in-editor companion)
-
-There's a separate Cursor/VS Code extension (`../cursor-server-launcher-ext`)
-that adds a **▶ Run :PORT** button to the status bar inside any open project. It
-reads the same `catalogue.json` and opens the preview in Chrome. Hotkeys:
-`Cmd+Alt+R` run, `Cmd+Alt+Shift+R` stop.
+`command`). No `server` block → type is auto-detected.
 
 ## Files
 
-- `server.py` — local web server (port 8847) + all actions (open in Cursor,
-  launch/stop servers, screenshots, save/auto-generate catalogue, ports).
-- `generate_dashboard.py` — scans projects and builds `dashboard.html`
-  (git-ignored: it embeds private repo names and local paths). Run with
-  `--public` to build a sanitized, shareable `dashboard_public.html` that
-  contains only repos that are public on GitHub, with no local paths.
+- `server.py` — local server (port 8847) and actions (open, run, screenshot,
+  catalogue, ports, clone).
+- `generate_dashboard.py` — scans folders and writes `dashboard.html`
+  (git-ignored: private names, local paths, embedded shots). `--public` writes
+  a sanitized `dashboard_public.html` (public GitHub repos only, no local paths).
+- `github_repos.py` — `gh repo list` cache (`github_cache.json`, git-ignored).
 - `server_launcher.py` — resolves and runs each project's dev server.
-- `CursorLauncher.app` — double-click dock launcher.
-- Runtime (git-ignored): `running.json`, `ports.json`, `.visibility_cache.json`, `logs/`.
+- `CursorLauncher.app` — Dock launcher (regenerate + server + browser).
+- Runtime (git-ignored): `running.json`, `ports.json`, `pinned.json`,
+  `recent.json`, `.visibility_cache.json`, `gh_assets/`, `logs/`.
 
-## Running
-
-```bash
-python3 server.py          # starts on http://localhost:8847 and opens the browser
-```
-
-Or double-click **CursorLauncher.app**. To stop: the **⏹ Stop server** button in
-the header, or `lsof -ti :8847 | xargs kill`.
+Optional in-editor companion: `../cursor-server-launcher-ext` adds **▶ Run :PORT**
+to Cursor's status bar (`Cmd+Alt+R` / `Cmd+Alt+Shift+R`).

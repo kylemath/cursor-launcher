@@ -1,49 +1,13 @@
-# 🚀 Welcome to Your Cursor Projects!
+# Cursor Project Launcher
 
-## Quick Access Dashboard
+Local dashboard for every folder under `~/Coding` (and `~`), plus GitHub repos that are not cloned yet.
 
-[Click here to open your Project Dashboard](http://localhost:8765/dashboard.html)
+**Open it:** [http://localhost:8847](http://localhost:8847)
 
-Or run in terminal:
 ```bash
-projects
+cd ~/Coding/TOOLS/cursor-launcher && python3 server.py
 ```
 
----
+Or double-click **CursorLauncher.app**.
 
-## Recent Projects
-
-<!-- This will be auto-populated -->
-
----
-
-## Quick Tips
-
-- **Hold ⌘ (Cmd)** while clicking to open in a NEW Cursor window
-- **Search** projects by typing in the search box  
-- **Bookmark** the dashboard for instant access
-- Run `projects` from any terminal to refresh and open
-
----
-
-## Add New Projects
-
-To add a project to the dashboard:
-
-1. Create `catalogue.json` in project root:
-```json
-{
-  "id": "my-project",
-  "title": "My Project",
-  "oneLiner": "What it does",
-  "tags": ["tag1", "tag2"]
-}
-```
-
-2. Add `screenshot.png` 
-
-3. Run: `projects`
-
----
-
-**Dashboard Location:** `~/Coding/TOOLS/cursor-launcher/dashboard.html`
+New machine or first run? See [QUICKSTART.md](QUICKSTART.md). Features and catalogue format: [README.md](README.md).
