@@ -64,6 +64,14 @@ alias projects='cd ~/Coding/TOOLS/cursor-launcher && python3 server.py'
 
 **Cursor CLI** must be at `/usr/local/bin/cursor` for Dock-app launches. If `cursor` works in a terminal but not from the app, install the command from Cursor's palette and confirm that path.
 
+**In-editor Run button** (status-bar **▶ Run :PORT**, `Cmd+Alt+R`):
+
+```bash
+cd ~/Coding/TOOLS/cursor-launcher/extension
+npx @vscode/vsce package
+cursor --install-extension cursor-server-launcher-0.2.0.vsix
+```
+
 ## Troubleshooting
 
 | Problem | Check |

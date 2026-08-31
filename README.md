@@ -126,9 +126,23 @@ launcher adds an optional `server` block:
   a sanitized `dashboard_public.html` (public GitHub repos only, no local paths).
 - `github_repos.py` — `gh repo list` cache (`github_cache.json`, git-ignored).
 - `server_launcher.py` — resolves and runs each project's dev server.
+- `extension/` — Cursor / VS Code companion: status-bar **▶ Run :PORT**.
 - `CursorLauncher.app` — Dock launcher (regenerate + server + browser).
 - Runtime (git-ignored): `running.json`, `ports.json`, `pinned.json`,
   `recent.json`, `.visibility_cache.json`, `gh_assets/`, `logs/`.
 
-Optional in-editor companion: `../cursor-server-launcher-ext` adds **▶ Run :PORT**
-to Cursor's status bar (`Cmd+Alt+R` / `Cmd+Alt+Shift+R`).
+## In-editor Run button
+
+`extension/` is a Cursor / VS Code extension that adds **▶ Run :PORT** to the
+status bar (`Cmd+Alt+R` / `Cmd+Alt+Shift+R` to stop). It reads the same
+`catalogue.json` `server` block as the dashboard (or auto-detects). Details
+and settings: [extension/README.md](extension/README.md).
+
+```bash
+cd extension
+npx @vscode/vsce package
+cursor --install-extension cursor-server-launcher-0.2.0.vsix
+```
+
+For development, symlink `extension/` into `~/.cursor/extensions/` instead of
+repackaging.

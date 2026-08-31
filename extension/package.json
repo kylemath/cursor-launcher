@@ -1,0 +1,76 @@
+{
+  "name": "cursor-server-launcher",
+  "displayName": "Project Server Launcher",
+  "description": "One-click status-bar button to launch the current project's dev server (HTML / Python / Node), driven by catalogue.json or auto-detection.",
+  "version": "0.2.0",
+  "publisher": "kylemath",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kylemath/cursor-launcher",
+    "directory": "extension"
+  },
+  "main": "./extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "projectLauncher.runServer",
+        "title": "Project Launcher: Run Dev Server",
+        "category": "Project Launcher",
+        "icon": "$(play)"
+      },
+      {
+        "command": "projectLauncher.stopServer",
+        "title": "Project Launcher: Stop Dev Server",
+        "category": "Project Launcher",
+        "icon": "$(debug-stop)"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "projectLauncher.runServer",
+        "key": "cmd+alt+r",
+        "mac": "cmd+alt+r",
+        "win": "ctrl+alt+r",
+        "linux": "ctrl+alt+r"
+      },
+      {
+        "command": "projectLauncher.stopServer",
+        "key": "cmd+alt+shift+r",
+        "mac": "cmd+alt+shift+r",
+        "win": "ctrl+alt+shift+r",
+        "linux": "ctrl+alt+shift+r"
+      }
+    ],
+    "configuration": {
+      "title": "Project Server Launcher",
+      "properties": {
+        "projectLauncher.openPreview": {
+          "type": "boolean",
+          "default": true,
+          "description": "Open a preview after launching the server."
+        },
+        "projectLauncher.previewTarget": {
+          "type": "string",
+          "enum": ["chrome", "simpleBrowser", "default"],
+          "enumDescriptions": [
+            "Open in Google Chrome (falls back to default browser)",
+            "Open in Cursor's built-in Simple Browser inside the editor",
+            "Open in the system default browser"
+          ],
+          "default": "chrome",
+          "description": "Where to open the preview after launching the server."
+        }
+      }
+    }
+  }
+}
