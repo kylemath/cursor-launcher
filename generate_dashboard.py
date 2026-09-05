@@ -939,6 +939,11 @@ def generate_card_html(project: Dict, compact: bool = False, show_category: bool
                 btns.append(f'<button class="action-btn gen-btn" onclick="autogenCatalogue(\'{escaped_path}\', event)" title="Create catalogue.json">＋📋</button>')
             if missing_shot:
                 btns.append(f'<button class="action-btn gen-btn" onclick="autogenScreenshot(\'{escaped_path}\', event)" title="Capture screenshot.png">📸</button>')
+        git = project.get('git') or {}
+        if git.get('is_repo') and git.get('uncommitted'):
+            btns.append(f'<button class="action-btn sync-btn" onclick="commitNow(\'{escaped_path}\', event)" title="Commit and push uncommitted files">⬆</button>')
+        if not git.get('has_remote'):
+            btns.append(f'<button class="action-btn pub-btn" onclick="publishNow(\'{escaped_path}\', event)" title="Publish to GitHub with recommended defaults">🐙</button>')
         if btns:
             server_actions = '<div class="card-actions">' + ''.join(btns) + '</div>'
 
@@ -978,7 +983,7 @@ def generate_card_html(project: Dict, compact: bool = False, show_category: bool
             {f'<p class="project-path">{project["rel_path"]}</p>' if not compact else ''}
             {tags_html}
         </div>
-        <button class="manage-btn" onclick="openManage('{escaped_path}', event)" title="Manage project (catalogue, open, screenshot)">⚙</button>
+        <button class="manage-btn" onclick="openManage('{escaped_path}', event)" title="Manage project (publish, catalogue, screenshot)">⚙</button>
         <button class="pin-btn {pin_class}" onclick="togglePin('{escaped_path}', event)" title="{'Unpin' if project['is_pinned'] else 'Pin'} this project">
             {pin_icon}
         </button>
@@ -1155,6 +1160,11 @@ def generate_feed_card_html(project: Dict) -> str:
             actions += f'<button class="action-btn gen-btn" onclick="autogenCatalogue(\'{escaped_path}\', event)" title="Create catalogue.json">＋ Catalogue</button>'
         if missing_shot:
             actions += f'<button class="action-btn gen-btn" onclick="autogenScreenshot(\'{escaped_path}\', event)" title="Capture screenshot.png">📸 Screenshot</button>'
+    git = project.get('git') or {}
+    if git.get('is_repo') and git.get('uncommitted'):
+        actions += f'<button class="action-btn sync-btn" onclick="commitNow(\'{escaped_path}\', event)" title="Commit and push uncommitted files">⬆ Commit</button>'
+    if not git.get('has_remote'):
+        actions += f'<button class="action-btn pub-btn" onclick="publishNow(\'{escaped_path}\', event)" title="Publish to GitHub with recommended defaults">🐙 Publish</button>'
 
     search_str = html.escape(
         f"{project['title']} {desc} {project.get('rel_path','')} "
@@ -1351,6 +1361,17 @@ def generate_table_html(projects: List[Dict], columns: Optional[List[Dict]] = No
             f'<button class="action-btn manage-inline tbl-run" onclick="openManage(\'{escaped_path}\', event)" '
             f'title="Manage">⚙</button>'
         )
+        git = p.get('git') or {}
+        if git.get('is_repo') and git.get('uncommitted'):
+            manage_cell += (
+                f'<button class="action-btn sync-btn tbl-run" onclick="commitNow(\'{escaped_path}\', event)" '
+                f'title="Commit and push">⬆</button>'
+            )
+        if not git.get('has_remote'):
+            manage_cell += (
+                f'<button class="action-btn pub-btn tbl-run" onclick="publishNow(\'{escaped_path}\', event)" '
+                f'title="Publish to GitHub">🐙</button>'
+            )
         has_cat = p.get('has_catalogue')
         has_shot = bool(p.get('screenshot_path'))
         cat_cell = ('<span class="has-yes" title="catalogue.json present">✓</span>'
@@ -2465,6 +2486,36 @@ def generate_html(projects: List[Dict]) -> str:
         .mini-gen:hover {{ background:var(--accent); color:#0a0a0b; border-color:var(--accent); }}
         .qbtn.gen {{ background:var(--accent-2); color:#0a0a0b; border-color:var(--accent-2); }}
         .qbtn.gen:hover {{ filter:brightness(1.1); }}
+        .qbtn:disabled {{ opacity:.55; cursor:wait; }}
+        .action-btn.pub-btn {{ background:#7c6af7; color:#fff; }}
+        .action-btn.pub-btn:hover {{ filter:brightness(1.1); }}
+        .publish-row {{ display:flex; gap:16px; align-items:center; flex-wrap:wrap; }}
+        .publish-name-row {{ display:grid; grid-template-columns:140px 1fr; gap:10px 14px; align-items:center; }}
+        .publish-name-row label {{ font-size:13px; color:var(--text-dim); }}
+        .publish-name-row input {{
+            background:var(--surface-2); border:1px solid var(--border); color:var(--text);
+            border-radius:8px; padding:8px 10px; font-size:13px; outline:none; width:100%;
+            font-family:ui-monospace,Menlo,monospace; }}
+        .publish-name-row input:focus {{ border-color:var(--accent); }}
+        .publish-name-row input:disabled {{ opacity:.6; }}
+        .publish-choice {{ display:inline-flex; align-items:center; gap:6px; font-size:13px; color:var(--text-dim); cursor:pointer; }}
+        .publish-choice input {{ width:auto; accent-color:var(--accent); }}
+        .publish-log {{ margin:4px 0 0; padding-left:18px; font-size:12px; color:var(--text-dim); }}
+        .publish-log .ok {{ color:var(--green); }}
+        .publish-log .skip {{ color:var(--text-faint); }}
+        .publish-log .err {{ color:#ef6e6e; }}
+        .commit-opts {{ display:flex; flex-direction:column; gap:8px; }}
+        .commit-files-head {{ display:flex; justify-content:space-between; align-items:center;
+            font-size:12px; color:var(--text-faint); margin-top:4px; }}
+        .commit-files {{ max-height:180px; overflow:auto; border:1px solid var(--border);
+            border-radius:8px; padding:6px 8px; background:var(--surface-2); }}
+        .commit-file {{ display:flex; align-items:center; gap:8px; font-size:12px;
+            font-family:ui-monospace,Menlo,monospace; color:var(--text-dim); padding:3px 0; }}
+        .commit-file input {{ width:auto; }}
+        .commit-xy {{ width:2.2em; font-weight:700; color:var(--accent); flex-shrink:0; }}
+        .commit-xy.untracked {{ color:var(--green); }}
+        .action-btn.sync-btn {{ background:#3d8b6e; color:#fff; }}
+        .action-btn.sync-btn:hover {{ filter:brightness(1.1); }}
     </style>
 </head>
 <body>
@@ -2546,7 +2597,9 @@ def generate_html(projects: List[Dict]) -> str:
                         <div class="legend-row"><b>⌘/Ctrl+Click</b> → Open in a new Cursor window</div>
                         <div class="legend-row"><b>▶ Run</b> → Start dev server + open in Chrome</div>
                         <div class="legend-row"><b>🚀 Both</b> → Open in Cursor + start server + Chrome</div>
-                        <div class="legend-row"><b>⚙ Manage</b> → Edit catalogue, capture screenshot, open files</div>
+                        <div class="legend-row"><b>⚙ Manage</b> → Edit catalogue, publish to GitHub, capture screenshot</div>
+                        <div class="legend-row"><b>🐙 Publish</b> → git + catalogue + screenshot + GitHub (Pages optional)</div>
+                        <div class="legend-row"><b>⬆ Commit</b> → Add, commit, and push uncommitted files</div>
                         <div class="legend-row"><b>📍</b> → Pin / unpin project (pinned stay at top)</div>
                     </div>
                 </div>
@@ -2614,12 +2667,60 @@ def generate_html(projects: List[Dict]) -> str:
                     <div class="modal-md-list" id="mgMdList"></div>
                 </div>
 
+                <div class="modal-section" id="mgCommitSection" style="display:none">
+                    <h3>Commit &amp; push</h3>
+                    <div class="modal-hint" id="mgCommitStatus">No local git changes.</div>
+                    <div class="quick-actions">
+                        <button class="qbtn primary" id="mgCommitBtn" onclick="mgCommitPush()" title="Stage selected files, commit, and push">⬆ Commit &amp; push</button>
+                        <button class="qbtn" id="mgCommitOptsBtn" onclick="mgToggleCommitOpts()">Options</button>
+                    </div>
+                    <div id="mgCommitOpts" class="commit-opts" style="display:none">
+                        <label class="publish-choice"><input type="checkbox" id="mgIncUntracked" checked> Include untracked files</label>
+                        <label class="publish-choice"><input type="checkbox" id="mgDoPush" checked> Push after commit</label>
+                        <div class="publish-name-row" style="margin-top:8px">
+                            <label for="mgCommitMsg">Commit message</label>
+                            <input id="mgCommitMsg" type="text" placeholder="Update project" autocomplete="off">
+                        </div>
+                        <div class="commit-files-head">
+                            <span>Files to include</span>
+                            <span>
+                                <button type="button" class="mini-gen" onclick="mgCommitSelect(true)">all</button>
+                                <button type="button" class="mini-gen" onclick="mgCommitSelect(false)">none</button>
+                            </span>
+                        </div>
+                        <div id="mgCommitFiles" class="commit-files"></div>
+                    </div>
+                    <ol id="mgCommitLog" class="publish-log" style="display:none"></ol>
+                </div>
+
                 <div class="modal-section">
-                    <h3>Auto-generate</h3>
+                    <h3>Publish to GitHub</h3>
+                    <div class="modal-hint" id="mgPubStatus">Recommended defaults are filled from the project type (static → public + Pages; backend → private).</div>
+                    <div class="publish-name-row">
+                        <label for="mgRepoName">GitHub repo name</label>
+                        <input id="mgRepoName" type="text" placeholder="repo-name" autocomplete="off" spellcheck="false">
+                    </div>
+                    <div class="modal-hint" id="mgRepoNameHint">This is the GitHub repository name (not the catalogue title). Local folder stays the same.</div>
+                    <div class="publish-row">
+                        <label class="publish-choice"><input type="radio" name="mgVis" value="public"> 🌐 Public</label>
+                        <label class="publish-choice"><input type="radio" name="mgVis" value="private" checked> 🔒 Private</label>
+                        <label class="publish-choice"><input type="checkbox" id="mgPages"> GitHub Pages</label>
+                    </div>
+                    <div class="quick-actions">
+                        <button class="qbtn primary" id="mgPublishCustomBtn" onclick="mgPublish(false)" title="Create or update the GitHub repo using the name, visibility, and Pages above, plus catalogue/screenshot already in the folder">✨ Create repo with these settings</button>
+                        <button class="qbtn" id="mgPublishBtn" onclick="mgPublish(true)" title="Ignore the form and use recommended name, visibility, and Pages">🚀 Publish with defaults</button>
+                        <button class="qbtn" id="mgPublishResetBtn" onclick="mgFillPublishDefaults()" title="Put the recommended name, visibility, and Pages back into the form">Reset form</button>
+                    </div>
+                    <div class="modal-hint">Green button uses the repo name, public/private, and Pages above (and any catalogue/screenshot already saved). Defaults ignores the form. Requires <code>gh auth login</code>.</div>
+                    <ol id="mgPubLog" class="publish-log" style="display:none"></ol>
+                </div>
+
+                <div class="modal-section">
+                    <h3>Auto-generate (local only)</h3>
                     <div class="quick-actions">
                         <button class="qbtn gen" id="mgGenAllBtn" onclick="mgGenerateAll()" title="Create catalogue.json AND capture a screenshot in one step">✨ Auto-generate catalogue + screenshot</button>
                     </div>
-                    <div class="modal-hint">Creates <code>catalogue.json</code> (from folder/README/git/server) and, for runnable projects, captures <code>screenshot.png</code>.</div>
+                    <div class="modal-hint">Creates <code>catalogue.json</code> (from folder/README/git/server) and, for runnable projects, captures <code>screenshot.png</code> — does not create a GitHub repo.</div>
                 </div>
 
                 <div class="modal-section">
@@ -2888,6 +2989,8 @@ def generate_html(projects: List[Dict]) -> str:
                         rb.textContent = '▶ Open webpage (' + (info.server_url || 'server') + ')';
                     }}
                     document.getElementById('mgReadmeBtn').style.opacity = info.readme ? '1' : '.45';
+                    fillPublishFromPreview(info.publish);
+                    fillCommitFromGit(info.git);
                 }}).catch(() => {{}});
             }}
             document.getElementById('manageModal').classList.add('open');
@@ -3093,6 +3196,364 @@ def generate_html(projects: List[Dict]) -> str:
                 btn.disabled = false; btn.textContent = '✨ Auto-generate catalogue + screenshot';
                 showNotification('Error', 'error');
             }});
+        }}
+
+        let mgPubDefaults = null;
+
+        function bindPublishFormWatchers() {{
+            if (window._mgPubBound) return;
+            window._mgPubBound = true;
+            const nameEl = document.getElementById('mgRepoName');
+            if (nameEl) nameEl.addEventListener('input', updatePublishButtons);
+            document.querySelectorAll('input[name="mgVis"]').forEach(r => r.addEventListener('change', updatePublishButtons));
+            const pages = document.getElementById('mgPages');
+            if (pages) pages.addEventListener('change', updatePublishButtons);
+        }}
+
+        function publishFormMatchesDefaults() {{
+            if (!mgPubDefaults) return true;
+            const cur = currentPublishChoices(false);
+            const recName = (mgPubDefaults.repo_name || '').trim();
+            return cur.visibility === (mgPubDefaults.visibility || 'private')
+                && !!cur.pages === !!mgPubDefaults.pages
+                && (cur.repo_name || '') === recName;
+        }}
+
+        function updatePublishButtons() {{
+            const creating = !(mgPubDefaults && mgPubDefaults.has_remote);
+            const custom = document.getElementById('mgPublishCustomBtn');
+            const defBtn = document.getElementById('mgPublishBtn');
+            if (custom) {{
+                custom.textContent = creating
+                    ? '✨ Create repo with these settings'
+                    : '✨ Update repo with these settings';
+            }}
+            if (defBtn) {{
+                defBtn.textContent = creating
+                    ? '🚀 Create repo with defaults'
+                    : '🚀 Update with defaults';
+            }}
+        }}
+
+        function fillPublishFromPreview(pub) {{
+            const status = document.getElementById('mgPubStatus');
+            const custom = document.getElementById('mgPublishCustomBtn');
+            const defBtn = document.getElementById('mgPublishBtn');
+            const log = document.getElementById('mgPubLog');
+            if (log) {{ log.style.display = 'none'; log.innerHTML = ''; }}
+            bindPublishFormWatchers();
+            if (!pub || pub.status !== 'ok') {{
+                if (status) status.textContent = (pub && pub.message) || 'Could not load publish defaults.';
+                return;
+            }}
+            mgPubDefaults = pub.defaults || {{}};
+            applyPublishDefaults(mgPubDefaults);
+            const ghOk = pub.gh && pub.gh.ok;
+            if (custom) custom.disabled = !ghOk;
+            if (defBtn) defBtn.disabled = !ghOk;
+            updatePublishButtons();
+            if (status) {{
+                const kind = (mgPubDefaults.kind || {{}});
+                const kindNote = kind.backend
+                    ? ('Detected ' + (kind.backend_type || 'backend') + ' — Pages off by default.')
+                    : (kind.static ? 'Detected static site — public + Pages recommended.' : 'Could not detect site type.');
+                const ghNote = ghOk ? '' : (' ' + ((pub.gh && pub.gh.message) || 'gh not ready.'));
+                status.textContent = (pub.summary || '') + '. ' + kindNote + ghNote;
+            }}
+        }}
+
+        function applyPublishDefaults(d) {{
+            if (!d) return;
+            const vis = d.visibility === 'public' ? 'public' : 'private';
+            document.querySelectorAll('input[name="mgVis"]').forEach(r => {{ r.checked = r.value === vis; }});
+            const pages = document.getElementById('mgPages');
+            if (pages) pages.checked = !!d.pages;
+            const nameEl = document.getElementById('mgRepoName');
+            const hint = document.getElementById('mgRepoNameHint');
+            if (nameEl) {{
+                nameEl.value = d.repo_name || d.folder_name || '';
+                nameEl.disabled = !!d.has_remote;
+            }}
+            if (hint) {{
+                hint.textContent = d.has_remote
+                    ? 'Already on GitHub — name is fixed to the existing remote. Visibility and Pages can still change.'
+                    : 'GitHub repository name (not the catalogue title). Local folder stays the same.';
+            }}
+        }}
+
+        function mgFillPublishDefaults() {{
+            if (mgPubDefaults) applyPublishDefaults(mgPubDefaults);
+            else if (mgPath) {{
+                fetch('/publish-preview?path=' + encodeURIComponent(mgPath))
+                    .then(r => r.json()).then(fillPublishFromPreview);
+            }}
+        }}
+
+        function renderPublishLog(steps) {{
+            const log = document.getElementById('mgPubLog');
+            if (!log) return;
+            log.innerHTML = '';
+            (steps || []).forEach(s => {{
+                const li = document.createElement('li');
+                const cls = s.status === 'ok' ? 'ok' : (s.status === 'error' ? 'err' : 'skip');
+                li.className = cls;
+                li.textContent = s.name + ': ' + (s.detail || s.status);
+                log.appendChild(li);
+            }});
+            log.style.display = steps && steps.length ? '' : 'none';
+        }}
+
+        function currentPublishChoices(useRecommended) {{
+            if (useRecommended && mgPubDefaults) {{
+                return {{
+                    visibility: mgPubDefaults.visibility || 'private',
+                    pages: !!mgPubDefaults.pages,
+                    repo_name: mgPubDefaults.repo_name || '',
+                    defaults: true,
+                }};
+            }}
+            const nameEl = document.getElementById('mgRepoName');
+            const typed = nameEl ? (nameEl.value || '').trim() : '';
+            const visEl = document.querySelector('input[name="mgVis"]:checked');
+            return {{
+                visibility: (visEl && visEl.value) || 'private',
+                pages: !!(document.getElementById('mgPages') && document.getElementById('mgPages').checked),
+                repo_name: typed || (mgPubDefaults && mgPubDefaults.repo_name) || '',
+                defaults: false,
+            }};
+        }}
+
+        function runPublish(path, choices, btn) {{
+            const label = btn ? btn.textContent : '';
+            if (btn) {{ btn.disabled = true; btn.textContent = '🐙 Publishing…'; }}
+            showNotification('Publishing ' + path.split('/').pop() + '…', 'info');
+            return fetch('/publish-repo', {{
+                method: 'POST',
+                headers: {{ 'Content-Type': 'application/json' }},
+                body: JSON.stringify(Object.assign({{ path: path }}, choices)),
+            }}).then(r => r.json()).then(d => {{
+                if (btn) {{ btn.disabled = false; btn.textContent = label; }}
+                updatePublishButtons();
+                renderPublishLog(d.steps || []);
+                if (d.status === 'ok') {{
+                    showNotification(d.message || 'Published', 'success');
+                    fetch('/project-info?path=' + encodeURIComponent(path)).then(r => r.json()).then(info => {{
+                        fillCatalogueForm(info.catalogue || {{}});
+                        fillPublishFromPreview(info.publish);
+                        if (info.publish && info.publish.defaults && info.publish.defaults.has_screenshot) {{
+                            const img = document.getElementById('mgShotPreview');
+                            if (img) {{
+                                img.src = '/screenshot-file?path=' + encodeURIComponent(path) + '&t=' + Date.now();
+                                img.style.display = '';
+                            }}
+                        }}
+                    }}).catch(() => {{}});
+                    regenerateCards();
+                }} else {{
+                    showNotification(d.message || 'Publish failed', 'error');
+                }}
+                return d;
+            }}).catch(() => {{
+                if (btn) {{ btn.disabled = false; btn.textContent = label; }}
+                updatePublishButtons();
+                showNotification('Publish error', 'error');
+            }});
+        }}
+
+        function mgPublish(useRecommended) {{
+            if (!isLocalServer || !mgPath) {{ showNotification('Run server.py for this', 'info'); return; }}
+            const choices = currentPublishChoices(!!useRecommended);
+            const name = choices.repo_name || mgPath.split('/').pop();
+            const pagesNote = choices.pages ? ' with GitHub Pages' : '';
+            const creating = !(mgPubDefaults && mgPubDefaults.has_remote);
+            const verb = creating ? 'Create' : 'Update';
+            const how = useRecommended ? 'recommended defaults' : 'these settings';
+            if (!confirm(verb + ' GitHub repo “' + name + '” as ' + choices.visibility + pagesNote + ' using ' + how + '?')) return;
+            const btn = document.getElementById(useRecommended ? 'mgPublishBtn' : 'mgPublishCustomBtn');
+            runPublish(mgPath, Object.assign(choices, {{ defaults: !!useRecommended }}), btn);
+        }}
+
+        function publishNow(path, event) {{
+            if (event) {{ event.preventDefault(); event.stopPropagation(); }}
+            if (!isLocalServer) {{ showNotification('Run server.py for this', 'info'); return; }}
+            fetch('/publish-preview?path=' + encodeURIComponent(path)).then(r => r.json()).then(pub => {{
+                if (!pub || pub.status !== 'ok') {{
+                    showNotification((pub && pub.message) || 'Cannot publish this folder', 'error');
+                    return;
+                }}
+                if (pub.gh && !pub.gh.ok) {{
+                    showNotification(pub.gh.message || 'gh not ready', 'error');
+                    return;
+                }}
+                const d = pub.defaults || {{}};
+                const vis = d.visibility || 'private';
+                const repo = d.repo_name || path.split('/').pop();
+                const pagesNote = d.pages ? ' with GitHub Pages' : '';
+                if (!confirm('Publish GitHub repo “' + repo + '” as ' + vis + pagesNote + ' using recommended defaults?')) return;
+                runPublish(path, {{ visibility: vis, pages: !!d.pages, repo_name: repo, defaults: true }}, null);
+            }}).catch(() => showNotification('Error', 'error'));
+        }}
+
+        let mgGitTree = null;
+
+        function fillCommitFromGit(git) {{
+            const section = document.getElementById('mgCommitSection');
+            const status = document.getElementById('mgCommitStatus');
+            const btn = document.getElementById('mgCommitBtn');
+            const log = document.getElementById('mgCommitLog');
+            if (log) {{ log.style.display = 'none'; log.innerHTML = ''; }}
+            if (!git || git.status !== 'ok' || !git.is_repo) {{
+                if (section) section.style.display = 'none';
+                mgGitTree = null;
+                return;
+            }}
+            mgGitTree = git;
+            if (section) section.style.display = '';
+            const bits = [];
+            if (git.branch) bits.push('⎇ ' + git.branch);
+            if (git.changed_count) bits.push(git.changed_count + ' changed');
+            if (git.untracked_count) bits.push(git.untracked_count + ' untracked');
+            if (git.ahead) bits.push('↑' + git.ahead);
+            if (git.behind) bits.push('↓' + git.behind);
+            if (!git.dirty && !git.ahead) bits.push('clean');
+            if (status) status.textContent = bits.join(' · ') + (git.has_remote ? '' : ' · no origin (commit only)');
+            const msg = document.getElementById('mgCommitMsg');
+            if (msg) msg.value = git.suggested_message || 'Update project';
+            const pushEl = document.getElementById('mgDoPush');
+            if (pushEl) pushEl.checked = !!git.has_remote;
+            renderCommitFiles(git);
+            const inc = document.getElementById('mgIncUntracked');
+            if (inc && !inc._bound) {{
+                inc._bound = true;
+                inc.addEventListener('change', () => {{ if (mgGitTree) renderCommitFiles(mgGitTree); }});
+            }}
+            if (btn) {{
+                if (git.dirty) btn.textContent = '⬆ Commit & push';
+                else if (git.ahead) btn.textContent = '⬆ Push ' + git.ahead + ' commit' + (git.ahead === 1 ? '' : 's');
+                else btn.textContent = '⬆ Nothing to commit';
+                btn.disabled = !git.dirty && !git.ahead;
+            }}
+        }}
+
+        function renderCommitFiles(git) {{
+            const wrap = document.getElementById('mgCommitFiles');
+            if (!wrap) return;
+            wrap.innerHTML = '';
+            const includeUntracked = !!(document.getElementById('mgIncUntracked') && document.getElementById('mgIncUntracked').checked);
+            (git.files || []).forEach(f => {{
+                if (f.kind === 'untracked' && !includeUntracked) return;
+                const row = document.createElement('label');
+                row.className = 'commit-file';
+                const cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.checked = f.kind !== 'unmerged';
+                cb.dataset.path = f.path;
+                cb.dataset.kind = f.kind;
+                const xy = document.createElement('span');
+                xy.className = 'commit-xy' + (f.kind === 'untracked' ? ' untracked' : '');
+                xy.textContent = f.xy || (f.kind === 'untracked' ? '??' : 'M');
+                const name = document.createElement('span');
+                name.textContent = f.path;
+                row.appendChild(cb);
+                row.appendChild(xy);
+                row.appendChild(name);
+                wrap.appendChild(row);
+            }});
+            if (!wrap.children.length) {{
+                wrap.innerHTML = '<div class="modal-hint">No matching files.</div>';
+            }}
+        }}
+
+        function mgToggleCommitOpts() {{
+            const el = document.getElementById('mgCommitOpts');
+            if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
+        }}
+
+        function mgCommitSelect(on) {{
+            document.querySelectorAll('#mgCommitFiles input[type=checkbox]').forEach(cb => {{ cb.checked = !!on; }});
+        }}
+
+        function selectedCommitFiles() {{
+            const includeUntracked = !!(document.getElementById('mgIncUntracked') && document.getElementById('mgIncUntracked').checked);
+            const boxes = document.querySelectorAll('#mgCommitFiles input[type=checkbox]');
+            if (!boxes.length) return null;
+            const files = [];
+            boxes.forEach(cb => {{
+                if (!cb.checked) return;
+                if (cb.dataset.kind === 'untracked' && !includeUntracked) return;
+                if (cb.dataset.path) files.push(cb.dataset.path);
+            }});
+            return files;
+        }}
+
+        function runCommitPush(path, payload, btn) {{
+            const label = btn ? btn.textContent : '';
+            if (btn) {{ btn.disabled = true; btn.textContent = '⬆ Working…'; }}
+            return fetch('/git-commit-push', {{
+                method: 'POST',
+                headers: {{ 'Content-Type': 'application/json' }},
+                body: JSON.stringify(Object.assign({{ path: path }}, payload)),
+            }}).then(r => r.json()).then(d => {{
+                if (btn) {{ btn.disabled = false; btn.textContent = label; }}
+                const log = document.getElementById('mgCommitLog');
+                if (log) {{
+                    log.innerHTML = '';
+                    (d.steps || []).forEach(s => {{
+                        const li = document.createElement('li');
+                        li.className = s.status === 'ok' ? 'ok' : (s.status === 'error' ? 'err' : 'skip');
+                        li.textContent = s.name + ': ' + (s.detail || s.status);
+                        log.appendChild(li);
+                    }});
+                    log.style.display = (d.steps && d.steps.length) ? '' : 'none';
+                }}
+                if (d.status === 'ok') {{
+                    showNotification(d.message || 'Committed', 'success');
+                    if (d.tree) fillCommitFromGit(d.tree);
+                    regenerateCards();
+                }} else showNotification(d.message || 'Commit failed', 'error');
+                return d;
+            }}).catch(() => {{
+                if (btn) {{ btn.disabled = false; btn.textContent = label; }}
+                showNotification('Commit error', 'error');
+            }});
+        }}
+
+        function mgCommitPush() {{
+            if (!isLocalServer || !mgPath) {{ showNotification('Run server.py for this', 'info'); return; }}
+            const files = selectedCommitFiles();
+            const msgEl = document.getElementById('mgCommitMsg');
+            const message = msgEl ? msgEl.value.trim() : '';
+            const include = !!(document.getElementById('mgIncUntracked') && document.getElementById('mgIncUntracked').checked);
+            const doPush = !!(document.getElementById('mgDoPush') && document.getElementById('mgDoPush').checked);
+            const n = files ? files.length : ((mgGitTree && mgGitTree.default_files) || []).length;
+            const pushNote = doPush ? ' and push' : '';
+            if (!confirm('Commit ' + n + ' file(s)' + pushNote + (message ? (' as “' + message + '”') : '') + '?')) return;
+            runCommitPush(mgPath, {{
+                message: message,
+                files: files,
+                include_untracked: include,
+                push: doPush,
+            }}, document.getElementById('mgCommitBtn'));
+        }}
+
+        function commitNow(path, event) {{
+            if (event) {{ event.preventDefault(); event.stopPropagation(); }}
+            if (!isLocalServer) {{ showNotification('Run server.py for this', 'info'); return; }}
+            fetch('/git-status?path=' + encodeURIComponent(path)).then(r => r.json()).then(git => {{
+                if (!git || git.status !== 'ok') {{
+                    showNotification((git && git.message) || 'Not a git repo', 'error');
+                    return;
+                }}
+                const n = (git.default_files || []).length;
+                const msg = git.suggested_message || 'Update project';
+                const pushNote = git.has_remote ? ' and push' : ' (no remote — commit only)';
+                if (!confirm('Commit ' + n + ' file(s)' + pushNote + ' as “' + msg + '”?')) return;
+                runCommitPush(path, {{
+                    message: msg,
+                    include_untracked: true,
+                    push: !!git.has_remote,
+                }}, null);
+            }}).catch(() => showNotification('Error', 'error'));
         }}
         
         /* Cards are baked into dashboard.html at generation time, so a plain

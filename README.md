@@ -69,7 +69,11 @@ the uncloned ones.
 
 This repo does **not** sync local-only folders or local-only git repos between
 machines. Pins, recents, and the generated dashboard are gitignored. Publishing
-a local folder to GitHub is still `git init` + `gh repo create` in a terminal.
+a local folder uses **⚙ Manage → 🚀 Publish with defaults** (or the card **🐙**
+button): git init, catalogue, screenshot, `gh repo create`, optional GitHub
+Pages, public or private. Same steps as `gir` from
+[gitBash](https://github.com/kylemath/gitBash), without the interactive
+prompts or AI. Requires `gh auth login`.
 
 ## Git status on every card
 
@@ -87,9 +91,14 @@ live **running** state. **🔌 Ports** lists every port, who uses it, and Stop.
 ## Manage a project (⚙ on any local card)
 
 - **Open**: Cursor, the README, any `.md`, or the running page.
-- **✨ Auto-generate catalogue + screenshot**: builds `catalogue.json` from
-  folder name, README, git remote, and detected server; captures a small
-  `screenshot.png`.
+- **🚀 Publish with defaults**: git repo if needed, `catalogue.json`,
+  screenshot, GitHub repo (public/private), optional Pages. Static sites
+  default to public + Pages; backends default to private. Toggle before
+  clicking, or **Reset defaults**. Card **🐙** runs the recommended defaults
+  after a confirm.
+- **✨ Auto-generate catalogue + screenshot**: local-only — builds
+  `catalogue.json` from folder name, README, git remote, and detected server;
+  captures a small `screenshot.png` without creating a GitHub repo.
 - **Catalogue editor**: title, one-liner, description, demo URL, categories,
   tags, kind, status, server block. **✨ Auto-fill** suggests values. Save
   **merges** so homepage-only fields (`demoUrl`, `screenshot`) are kept.
@@ -120,7 +129,9 @@ launcher adds an optional `server` block:
 ## Files
 
 - `server.py` — local server (port 8847) and actions (open, run, screenshot,
-  catalogue, ports, clone).
+  catalogue, ports, clone, publish).
+- `publish_repo.py` — non-interactive GitHub publish (`gir` flow: git,
+  catalogue, screenshot, `gh repo create`, Pages).
 - `generate_dashboard.py` — scans folders and writes `dashboard.html`
   (git-ignored: private names, local paths, embedded shots). `--public` writes
   a sanitized `dashboard_public.html` (public GitHub repos only, no local paths).

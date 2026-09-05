@@ -17,6 +17,8 @@ from datetime import datetime
 
 import server_launcher
 import github_repos
+import publish_repo
+import git_sync
 
 
 class ThreadingHTTPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
@@ -192,6 +194,20 @@ class CursorLauncherHandler(http.server.SimpleHTTPRequestHandler):
         if parsed.path == '/new-project':
             name = query.get('name', [''])[0]
             self.send_json_response(200, self.new_project(name))
+            return
+
+        # Preview recommended publish defaults (gir-style, no AI)
+        if parsed.path == '/publish-preview':
+            path = query.get('path', [''])[0]
+            self.send_json_response(200, publish_repo.preview(path))
+            return
+
+        if parsed.path == '/git-status':
+            path = query.get('path', [''])[0]
+            if not publish_repo.is_allowed_project_path(path):
+                self.send_json_response(400, {"status": "error", "message": "Invalid project path"})
+                return
+            self.send_json_response(200, git_sync.working_tree(path))
             return
 
         # Re-fetch GitHub repos (rebuild the cache), then regenerate the dashboard
@@ -391,6 +407,81 @@ class CursorLauncherHandler(http.server.SimpleHTTPRequestHandler):
             except Exception as e:
                 self.send_json_response(500, {"status": "error", "message": str(e)})
             return
+        if parsed.path == '/git-commit-push':
+            try:
+                length = int(self.headers.get('Content-Length', 0))
+                body = self.rfile.read(length) if length else b'{}'
+                payload = json.loads(body.decode('utf-8'))
+            except Exception as e:
+                self.send_json_response(400, {"status": "error", "message": f"Bad JSON: {e}"})
+                return
+            path = payload.get('path', '')
+            if not publish_repo.is_allowed_project_path(path):
+                self.send_json_response(400, {"status": "error", "message": "Invalid project path"})
+                return
+            files = payload.get('files', None)
+            if files is not None and not isinstance(files, list):
+                self.send_json_response(400, {"status": "error", "message": "files must be a list"})
+                return
+            include = payload.get('include_untracked', True)
+            if isinstance(include, str):
+                include = include.lower() in ('1', 'true', 'yes')
+            do_push = payload.get('push', True)
+            if isinstance(do_push, str):
+                do_push = do_push.lower() in ('1', 'true', 'yes')
+            print(f"⬆ Commit/push {path}")
+            result = git_sync.commit_and_push(
+                path,
+                message=payload.get('message'),
+                files=files,
+                include_untracked=bool(include),
+                push=bool(do_push),
+            )
+            if result.get('status') == 'ok':
+                self.regenerate_dashboard()
+            print(f"⬆ {result.get('status')}: {result.get('message')}")
+            self.send_json_response(200, result)
+            return
+        if parsed.path == '/publish-repo':
+            try:
+                length = int(self.headers.get('Content-Length', 0))
+                body = self.rfile.read(length) if length else b'{}'
+                payload = json.loads(body.decode('utf-8'))
+            except Exception as e:
+                self.send_json_response(400, {"status": "error", "message": f"Bad JSON: {e}"})
+                return
+            path = payload.get('path', '')
+            if not publish_repo.is_allowed_project_path(path):
+                self.send_json_response(400, {"status": "error", "message": "Invalid project path"})
+                return
+            use_defaults = bool(payload.get('defaults'))
+            preview = publish_repo.preview(path)
+            if preview.get('status') != 'ok':
+                self.send_json_response(400, preview)
+                return
+            rec = preview.get('defaults') or {}
+            visibility = rec.get('visibility', 'private') if use_defaults else (
+                payload.get('visibility') or rec.get('visibility') or 'private')
+            pages = rec.get('pages', False) if use_defaults else payload.get('pages', rec.get('pages', False))
+            if isinstance(pages, str):
+                pages = pages.lower() in ('1', 'true', 'yes')
+            repo_name = rec.get('repo_name') if use_defaults else (
+                payload.get('repo_name') or rec.get('repo_name'))
+            print(f"🐙 Publishing {path} as {repo_name} ({visibility}, pages={bool(pages)})")
+            result = publish_repo.publish(
+                path,
+                visibility=visibility,
+                pages=bool(pages),
+                repo_name=repo_name,
+                commit_message=payload.get('commit_message'),
+                capture_screenshot=self.capture_screenshot,
+                autogen_catalogue=self.autogen_catalogue,
+            )
+            if result.get('status') == 'ok':
+                self.regenerate_dashboard()
+            print(f"🐙 Publish {result.get('status')}: {result.get('message')}")
+            self.send_json_response(200, result)
+            return
         if parsed.path == '/save-repo-groups':
             try:
                 length = int(self.headers.get('Content-Length', 0))
@@ -525,6 +616,11 @@ class CursorLauncherHandler(http.server.SimpleHTTPRequestHandler):
                 info["server_url"] = resolved.get('url')
         except Exception:
             pass
+        info["publish"] = publish_repo.preview(path)
+        if publish_repo.is_allowed_project_path(path) and (Path(path) / '.git').exists():
+            info["git"] = git_sync.working_tree(path)
+        else:
+            info["git"] = {"status": "ok", "is_repo": False, "dirty": False}
         return info
 
     def resolve_project_file(self, path, fname):
@@ -686,6 +782,9 @@ class CursorLauncherHandler(http.server.SimpleHTTPRequestHandler):
         }
         if demo_url and not existing.get('demoUrl'):
             generated['demoUrl'] = demo_url
+        shot = os.path.join(path, 'screenshot.png')
+        if os.path.isfile(shot) and not existing.get('screenshot'):
+            generated['screenshot'] = './screenshot.png'
         if server_block and not existing.get('server'):
             generated['server'] = server_block
 
@@ -784,6 +883,8 @@ class CursorLauncherHandler(http.server.SimpleHTTPRequestHandler):
                     '/project-info', '/open-file', '/capture-screenshot',
                     '/screenshot-file', '/save-catalogue', '/save-repo-groups', '/shutdown',
                     '/autogen-catalogue', '/clone-repo', '/new-project',
+                    '/publish-preview', '/publish-repo',
+                    '/git-status', '/git-commit-push',
                     '/refresh-github', '/regenerate-dashboard')):
                 return  # Don't log API calls
             # Only log actual page requests

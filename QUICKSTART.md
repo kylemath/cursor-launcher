@@ -52,7 +52,10 @@ Then in the dashboard click **↻ GitHub**. That lists every repo on `kylemath` 
 
 Nothing in this repo copies other machines' local-only folders or local-only git repos. Pins, recents, and `dashboard.html` are gitignored and stay on each machine. After you clone a GitHub card (or copy a folder yourself), regenerate or restart so it shows as local.
 
-Publishing a local-only folder to GitHub is still manual (`git init` + `gh repo create --source=. --push`). There is no dashboard button for that yet.
+Publishing a local-only folder: **⚙ Manage → 🚀 Publish with defaults**, or the
+card **🐙** button (uses recommended defaults after confirm). Needs
+`gh auth login`. Static sites default to public + GitHub Pages; backends
+default to private. The old terminal `gir` script still works independently.
 
 ## Optional
 
