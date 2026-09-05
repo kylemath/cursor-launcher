@@ -13,12 +13,17 @@ CLI:
     python3 github_repos.py refresh     # rebuild the cache (the slow part)
     python3 github_repos.py list        # print cached remote projects
     python3 github_repos.py export-repos  # write repos.local.json (all) + public repos.json
+    python3 github_repos.py public      # list public repos (API; no private cache write)
 """
 
 import base64
 import json
+import os
 import subprocess
 import sys
+import urllib.error
+import urllib.request
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Set
@@ -181,17 +186,170 @@ def fetch_and_cache(progress=None) -> Dict:
     return new
 
 
-def load_remote_projects(local_remotes: Optional[Set[str]] = None,
-                         include_forks: bool = False) -> List[Dict]:
-    """Return remote-only repos (not cloned locally) as dashboard project dicts."""
+def _github_token() -> str:
+    return (os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN") or "").strip()
+
+
+def _http_get(url: str, timeout: int = 20) -> Optional[bytes]:
+    req = urllib.request.Request(url, headers={
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "cursor-launcher",
+    })
+    token = _github_token()
+    if token:
+        req.add_header("Authorization", f"Bearer {token}")
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return resp.read()
+    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, OSError):
+        return None
+
+
+def list_public_repos() -> List[Dict]:
+    """Public repos for GH_USER via the REST API (no private names)."""
+    repos: List[Dict] = []
+    page = 1
+    while page <= 10:
+        raw = _http_get(
+            f"https://api.github.com/users/{GH_USER}/repos"
+            f"?per_page=100&type=owner&sort=pushed&page={page}"
+        )
+        if not raw:
+            break
+        try:
+            batch = json.loads(raw.decode("utf-8"))
+        except Exception:
+            break
+        if not isinstance(batch, list) or not batch:
+            break
+        repos.extend(item for item in batch if isinstance(item, dict))
+        if len(batch) < 100:
+            break
+        page += 1
+    return repos
+
+
+def _raw_json(full: str, branch: str, path: str) -> Optional[Dict]:
+    raw = _http_get(
+        f"https://raw.githubusercontent.com/{full}/{branch}/{path}", timeout=15)
+    if not raw:
+        return None
+    try:
+        data = json.loads(raw.decode("utf-8"))
+        return data if isinstance(data, dict) else None
+    except Exception:
+        return None
+
+
+def fetch_public_cache(progress=None) -> Dict:
+    """Public-only cache. Does not write github_cache.json (may contain private repos)."""
+    listing = list_public_repos()
+    if progress:
+        progress(f"Listed {len(listing)} public repos")
+    new: Dict = {}
+    pending = []
+    for r in listing:
+        if r.get("private"):
+            continue
+        name = r.get("name") or ""
+        if not name:
+            continue
+        full = f"{GH_USER}/{name}"
+        branch = r.get("default_branch") or "main"
+        pushed = r.get("pushed_at") or ""
+        entry = {
+            "name": name,
+            "full": full,
+            "private": False,
+            "url": r.get("html_url") or f"https://github.com/{full}",
+            "clone_url": r.get("clone_url") or f"https://github.com/{full}.git",
+            "description": r.get("description") or "",
+            "pushedAt": pushed,
+            "updatedAt": r.get("updated_at"),
+            "default_branch": branch,
+            "homepage": r.get("homepage") or "",
+            "fork": bool(r.get("fork")),
+            "language": r.get("language") if isinstance(r.get("language"), str) else None,
+            "topics": r.get("topics") or [],
+            "catalogue": None,
+            "screenshot": None,
+        }
+        new[full] = entry
+        pending.append((full, branch))
+
+    def _load(item):
+        full, branch = item
+        return full, _raw_json(full, branch, "catalogue.json")
+
+    done = 0
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        futures = [pool.submit(_load, item) for item in pending]
+        for fut in as_completed(futures):
+            full, cat = fut.result()
+            if cat:
+                new[full]["catalogue"] = cat
+            done += 1
+            if progress and done % 20 == 0:
+                progress(f"Fetched catalogues {done}/{len(pending)}…")
+    if progress:
+        progress(f"Done — {len(new)} public repos.")
+    return new
+
+
+def cache_from_repos_json() -> Dict:
+    """Minimal public cache from the committed repos.json (names + descriptions)."""
+    if not REPOS_FILE.exists():
+        return {}
+    try:
+        data = json.loads(REPOS_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    new: Dict = {}
+    for repo in data.get("repos") or []:
+        if not isinstance(repo, dict):
+            continue
+        if str(repo.get("visibility") or "").lower() == "private":
+            continue
+        name = repo.get("name") or ""
+        if not name:
+            continue
+        full = f"{GH_USER}/{name}"
+        new[full] = {
+            "name": name,
+            "full": full,
+            "private": False,
+            "url": f"https://github.com/{full}",
+            "clone_url": f"https://github.com/{full}.git",
+            "description": repo.get("description") or "",
+            "pushedAt": "",
+            "updatedAt": None,
+            "default_branch": "main",
+            "homepage": "",
+            "fork": False,
+            "language": None,
+            "topics": [],
+            "catalogue": None,
+            "screenshot": None,
+        }
+    return new
+
+
+def _projects_from_entries(cache: Dict,
+                           local_remotes: Optional[Set[str]] = None,
+                           include_forks: bool = False,
+                           only_public: bool = False) -> List[Dict]:
+    """Turn a github_cache-shaped dict into dashboard project dicts."""
     local_remotes = {r.lower() for r in (local_remotes or set())}
-    cache = load_cache()
     projects = []
     for full, e in cache.items():
+        if not isinstance(e, dict):
+            continue
+        if only_public and e.get("private"):
+            continue
         if not include_forks and e.get("fork"):
             continue
         if full.lower() in local_remotes:
-            continue  # already have a local clone
+            continue
         cat = e.get("catalogue") or {}
         pushed = e.get("pushedAt") or ""
         private = e.get("private")
@@ -245,9 +403,35 @@ def load_remote_projects(local_remotes: Optional[Set[str]] = None,
             "clone_url": e.get("clone_url"),
             "html_url": e.get("url"),
             "language": e.get("language"),
-            "homepage": e.get("homepage"),
+            "homepage": cat.get("demoUrl") or e.get("homepage") or "",
         })
     return projects
+
+
+def load_remote_projects(local_remotes: Optional[Set[str]] = None,
+                         include_forks: bool = False) -> List[Dict]:
+    """Return remote-only repos (not cloned locally) as dashboard project dicts."""
+    return _projects_from_entries(load_cache(), local_remotes=local_remotes,
+                                  include_forks=include_forks)
+
+
+def load_public_projects(progress=None) -> List[Dict]:
+    """All public GitHub repos as dashboard projects. Never includes private names.
+
+    Prefers the local github_cache.json (already fetched) so a laptop build is
+    fast. In CI the cache is absent, so this hits the public GitHub API.
+    Does not write github_cache.json.
+    """
+    cache = {k: v for k, v in load_cache().items()
+             if isinstance(v, dict) and not v.get("private")}
+    if not cache:
+        cache = fetch_public_cache(progress=progress)
+    if not cache:
+        cache = cache_from_repos_json()
+        if progress and cache:
+            progress(f"Fell back to repos.json ({len(cache)} public names)")
+    return _projects_from_entries(
+        cache, local_remotes=set(), include_forks=False, only_public=True)
 
 
 def export_repos_list() -> Dict:
@@ -306,6 +490,9 @@ def _main(argv):
         print(f"Wrote {info['all']} repos ({info['public']} public, "
               f"{info['private']} private) to {info['local']}")
         print(f"Wrote public-only list ({info['public']}) to {info['public_file']}")
+    elif argv[0] == "public":
+        for p in load_public_projects(progress=lambda m: print(m, flush=True)):
+            print(f"  🌐 {p['title']:<30} {p['last_commit_rel']}")
     else:
         print(__doc__)
     return 0

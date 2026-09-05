@@ -64,3 +64,4 @@ dashboard.html
 # Sanitized build (generate_dashboard.py --public). Safe to share, but too
 # large to track; use `git add -f dashboard_public.html` if you really want it.
 dashboard_public.html
+_site/

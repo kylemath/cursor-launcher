@@ -707,12 +707,59 @@ def encode_image_to_base64(image_path: str) -> Optional[str]:
         return None
 
 
+def public_open_url(project: Dict) -> str:
+    """Best public link: live demo, else the GitHub repo."""
+    for key in ("homepage", "html_url"):
+        url = (project.get(key) or "").strip()
+        if url.startswith(("http://", "https://")):
+            return url
+    git = project.get("git") or {}
+    owner = git.get("owner")
+    repo = git.get("repo_name") or project.get("id")
+    if owner and repo:
+        return f"https://github.com/{owner}/{repo}"
+    rel = project.get("rel_path") or ""
+    if "/" in rel:
+        return f"https://github.com/{rel}"
+    return ""
+
+
+def _js_url(url: str) -> str:
+    return (url or "").replace("\\", "\\\\").replace("'", "\\'")
+
+
+def github_open_url(project: Dict) -> str:
+    if PUBLIC_MODE:
+        return public_open_url(project) or (project.get("html_url") or "")
+    return project.get("html_url") or ""
+
+
+def github_card_open_actions(project: Dict) -> str:
+    """Action buttons on a GitHub card. Public pages omit clone (needs localhost)."""
+    html_url = _js_url(github_open_url(project))
+    if PUBLIC_MODE:
+        return (
+            f'<button class="action-btn both-btn" onclick="openGithub(\'{html_url}\', event)" '
+            f'title="Open">↗ Open</button>'
+        )
+    clone_url = _js_url(project.get("clone_url") or "")
+    name = (project.get("id") or "").replace("'", "\\'")
+    return (
+        f'<button class="action-btn clone-btn" onclick="cloneRepo(\'{clone_url}\', \'{name}\', event)" '
+        f'title="Clone into ~/{name} and open in Cursor">⬇ Clone</button>'
+        f'<button class="action-btn gen-btn" onclick="cloneRepoSetup(\'{clone_url}\', \'{name}\', event)" '
+        f'title="Clone, then auto-generate catalogue.json + screenshot.png locally">⬇✨</button>'
+        f'<button class="action-btn both-btn" onclick="openGithub(\'{html_url}\', event)" '
+        f'title="Open on GitHub">↗</button>'
+    )
+
+
 def resolve_screenshot_src(project: Dict) -> Optional[str]:
     """Return a value usable as an <img src> for a project card.
 
     Order of preference:
       1. A physical file (local screenshot.png or a downloaded GitHub asset),
-         embedded as a base64 data URI.
+         embedded as a base64 data URI (skipped in --public so Pages HTML stays small).
       2. The catalogue.json `screenshot` field (the same field the homepage
          uses). Absolute http(s)/data URLs are used as-is; relative paths like
          `./screenshot.png` are resolved against the repo's raw URL (for remote
@@ -720,14 +767,17 @@ def resolve_screenshot_src(project: Dict) -> Optional[str]:
     Returns None if nothing usable is found.
     """
     # 1) Physical file: local screenshot.png or a downloaded gh_assets/*.png
+    # Public dashboard hotlinks instead of embedding (keeps the Pages file small).
     file_path = project.get('screenshot_path')
-    if file_path:
+    if file_path and not PUBLIC_MODE:
         data = encode_image_to_base64(file_path)
         if data:
             return data
 
     # 2) Fall back to the catalogue `screenshot` field
     url = (project.get('screenshot_url') or '').strip()
+    if not url and project.get('has_catalogue') and project.get('raw_base'):
+        url = './screenshot.png'
     if not url:
         return None
     if url.startswith(('http://', 'https://', 'data:')):
@@ -746,6 +796,8 @@ def resolve_screenshot_src(project: Dict) -> Optional[str]:
         return None
 
     # Local project: resolve relative to the project folder and embed it
+    if PUBLIC_MODE:
+        return None
     proj_path = project.get('path')
     if proj_path:
         return encode_image_to_base64(os.path.join(proj_path, rel))
@@ -855,15 +907,14 @@ def generate_github_card_html(project: Dict) -> str:
     title = html.escape(project['title'])
     one_liner = html.escape(project.get('oneLiner') or 'No description')
     full = html.escape(project.get('rel_path', ''))
-    clone_url = (project.get('clone_url') or '').replace("'", "\\'")
-    html_url = (project.get('html_url') or '').replace("'", "\\'")
-    name = project['id'].replace("'", "\\'")
+    html_url = _js_url(github_open_url(project))
     git_status_html = render_git_status(project)
     search_str = html.escape(
         f"{project['title']} {one_liner} {full} {' '.join(project.get('tags', []))} github {project.get('sorter_group','')}",
         quote=True,
     )
     cat_badge = ('<span class="badge cat-github">GitHub</span>')
+    actions = github_card_open_actions(project)
     return f'''
     <div class="project-card github-card searchable" {item_filter_attrs(project)}
          data-search="{search_str}"
@@ -874,9 +925,7 @@ def generate_github_card_html(project: Dict) -> str:
             {img_tag}
             <div class="badges">{cat_badge}</div>
             <div class="card-actions">
-                <button class="action-btn clone-btn" onclick="cloneRepo('{clone_url}', '{name}', event)" title="Clone into ~/{name} and open in Cursor">⬇ Clone</button>
-                <button class="action-btn gen-btn" onclick="cloneRepoSetup('{clone_url}', '{name}', event)" title="Clone, then auto-generate catalogue.json + screenshot.png locally">⬇✨</button>
-                <button class="action-btn both-btn" onclick="openGithub('{html_url}', event)" title="Open on GitHub">↗</button>
+                {actions}
             </div>
         </div>
         <div class="project-info" onclick="openGithub('{html_url}', event)">
@@ -1213,9 +1262,7 @@ def generate_github_feed_card_html(project: Dict) -> str:
         img_tag = f'<img src="{html.escape(src, quote=True)}" alt="" class="feed-screenshot" loading="lazy">'
     title = html.escape(project['title'])
     desc = html.escape(project.get('description') or project.get('oneLiner') or 'No description')
-    clone_url = (project.get('clone_url') or '').replace("'", "\\'")
-    html_url = (project.get('html_url') or '').replace("'", "\\'")
-    name = project['id'].replace("'", "\\'")
+    html_url = _js_url(github_open_url(project))
     git_status_html = render_git_status(project)
     search_str = html.escape(
         f"{project['title']} {desc} {project.get('rel_path','')} github {project.get('sorter_group','')}", quote=True)
@@ -1223,6 +1270,7 @@ def generate_github_feed_card_html(project: Dict) -> str:
     group_chip = (
         f'<span class="chip chip-group">{html.escape(group)}</span>' if group else ""
     )
+    actions = github_card_open_actions(project)
     return f'''
     <article class="feed-card github-card searchable" {item_filter_attrs(project)} data-search="{search_str}">
         <div class="feed-thumb" onclick="openGithub('{html_url}', event)">{img_tag}</div>
@@ -1235,9 +1283,7 @@ def generate_github_feed_card_html(project: Dict) -> str:
             <p class="feed-desc">{desc}</p>
             {git_status_html}
             <div class="feed-actions">
-                <button class="action-btn clone-btn" onclick="cloneRepo('{clone_url}', '{name}', event)">⬇ Clone &amp; open</button>
-                <button class="action-btn gen-btn" onclick="cloneRepoSetup('{clone_url}', '{name}', event)" title="Clone, then auto-generate catalogue + screenshot">⬇✨ Clone + set up</button>
-                <button class="action-btn open-btn" onclick="openGithub('{html_url}', event)">↗ Open on GitHub</button>
+                {actions}
                 <span class="feed-path">{html.escape(project.get('rel_path',''))}</span>
             </div>
         </div>
@@ -1261,22 +1307,17 @@ def generate_feed_html(projects: List[Dict]) -> str:
 def _github_table_row(p: Dict, columns: Optional[List[Dict]] = None) -> str:
     """A table row for a GitHub repo that isn't cloned locally."""
     title = html.escape(p['title'])
-    clone_url = (p.get('clone_url') or '').replace("'", "\\'")
-    html_url = (p.get('html_url') or '').replace("'", "\\'")
-    name = p['id'].replace("'", "\\'")
+    html_url = _js_url(github_open_url(p))
     private = p.get('private')
     remote = '🔒 private' if private else '🌐 public'
     remote_sort = 2 if private else 3
     commit_ts = p.get('last_commit_ts') or 0
     commit_rel = html.escape(p.get('last_commit_rel') or '')
     has_cat = p.get('has_catalogue')
-    has_shot = bool(p.get('screenshot_path'))
+    has_shot = bool(p.get('screenshot_path') or p.get('screenshot_url') or p.get('has_catalogue'))
     cat_cell = '<span class="has-yes">✓</span>' if has_cat else '<span class="has-no">—</span>'
     shot_cell = '<span class="has-yes">✓</span>' if has_shot else '<span class="has-no">—</span>'
-    actions = (
-        f'<button class="action-btn clone-btn tbl-run" onclick="cloneRepo(\'{clone_url}\', \'{name}\', event)" title="Clone &amp; open">⬇</button>'
-        f'<button class="action-btn manage-inline tbl-run" onclick="openGithub(\'{html_url}\', event)" title="Open on GitHub">↗</button>'
-    )
+    actions = github_card_open_actions(p)
     group = p.get("sorter_group") or ""
     search_str = html.escape(f"{p['title']} {p.get('rel_path','')} github {group}", quote=True)
     return f'''<tr class="table-row github-row searchable" {item_filter_attrs(p)} data-search="{search_str}" onclick="openGithub('{html_url}', event)">
@@ -1439,74 +1480,74 @@ def generate_table_html(projects: List[Dict], columns: Optional[List[Dict]] = No
 def generate_html(projects: List[Dict]) -> str:
     """Generate HTML dashboard."""
 
-    # Common macOS system folders are noise in a single list; hide them.
-    display_projects = [p for p in projects if not p.get('is_common_osx')]
-    for p in display_projects:
-        p.setdefault('source', 'local')
-
-    # Append remote-only GitHub repos (not cloned locally). Deduped by the
-    # owner/repo of each local clone's origin remote.
-    local_remotes = set()
-    for p in display_projects:
-        g = p.get('git') or {}
-        if g.get('owner') and g.get('repo_name'):
-            local_remotes.add(f"{g['owner']}/{g['repo_name']}")
-    try:
-        remote_projects = github_repos.load_remote_projects(local_remotes)
-    except Exception as e:
-        print(f"⚠️  GitHub repos unavailable: {e}")
-        remote_projects = []
-    display_projects = display_projects + remote_projects
-
     group_data = load_repo_groups()
-    for p in display_projects:
-        assign_sorter_group(p, group_data["by_repo"])
 
-    # Public mode: keep only projects that are verifiably public on GitHub.
-    # Local-only folders, private repos, and unknown-visibility repos are all
-    # excluded so nothing about private work leaks into the shared file.
     if PUBLIC_MODE:
-        def _is_public(p: Dict) -> bool:
-            if p.get('source') == 'github':
-                return not p.get('private')
-            return ((p.get('git') or {}).get('visibility')) == 'public'
-        display_projects = [p for p in display_projects if _is_public(p)]
+        try:
+            display_projects = github_repos.load_public_projects(
+                progress=lambda m: print(f"   {m}", flush=True))
+        except Exception as e:
+            print(f"⚠️  Public GitHub repos unavailable: {e}")
+            display_projects = []
         allowed = set()
         for p in display_projects:
+            p.setdefault('source', 'github')
+            anonymize_project_for_public(p)
             allowed.update(_project_name_keys(p))
         allowed.update(public_repo_names())
         group_data = sanitize_groups_for_public(group_data, allowed)
         for p in display_projects:
-            anonymize_project_for_public(p)
+            assign_sorter_group(p, group_data["by_repo"])
+    else:
+        # Common macOS system folders are noise in a single list; hide them.
+        display_projects = [p for p in projects if not p.get('is_common_osx')]
+        for p in display_projects:
+            p.setdefault('source', 'local')
+
+        # Append remote-only GitHub repos (not cloned locally). Deduped by the
+        # owner/repo of each local clone's origin remote.
+        local_remotes = set()
+        for p in display_projects:
+            g = p.get('git') or {}
+            if g.get('owner') and g.get('repo_name'):
+                local_remotes.add(f"{g['owner']}/{g['repo_name']}")
+        try:
+            remote_projects = github_repos.load_remote_projects(local_remotes)
+        except Exception as e:
+            print(f"⚠️  GitHub repos unavailable: {e}")
+            remote_projects = []
+        display_projects = display_projects + remote_projects
+
+        for p in display_projects:
             assign_sorter_group(p, group_data["by_repo"])
 
-    # Port registry: detect collisions (same port designated by >1 project) and
-    # write a ports.json the server uses for the live Ports overview.
-    port_owners: Dict[int, List[Dict]] = {}
-    for p in display_projects:
-        port = p.get('server_port')
-        if port:
-            port_owners.setdefault(port, []).append(p)
-    for p in display_projects:
-        port = p.get('server_port')
-        p['port_conflict'] = bool(port and len(port_owners.get(port, [])) > 1)
-    try:
-        registry = {
-            'generated': datetime.now().isoformat(),
-            'projects': [
-                {
-                    'title': p['title'],
-                    'path': p['path'],
-                    'port': p.get('server_port'),
-                    'designated': p.get('port_designated', False),
-                    'type': p.get('server_type'),
-                }
-                for p in display_projects if p.get('server_port')
-            ],
-        }
-        (Path(__file__).parent / 'ports.json').write_text(json.dumps(registry, indent=2))
-    except Exception:
-        pass
+        # Port registry: detect collisions (same port designated by >1 project) and
+        # write a ports.json the server uses for the live Ports overview.
+        port_owners: Dict[int, List[Dict]] = {}
+        for p in display_projects:
+            port = p.get('server_port')
+            if port:
+                port_owners.setdefault(port, []).append(p)
+        for p in display_projects:
+            port = p.get('server_port')
+            p['port_conflict'] = bool(port and len(port_owners.get(port, [])) > 1)
+        try:
+            registry = {
+                'generated': datetime.now().isoformat(),
+                'projects': [
+                    {
+                        'title': p['title'],
+                        'path': p['path'],
+                        'port': p.get('server_port'),
+                        'designated': p.get('port_designated', False),
+                        'type': p.get('server_type'),
+                    }
+                    for p in display_projects if p.get('server_port')
+                ],
+            }
+            (Path(__file__).parent / 'ports.json').write_text(json.dumps(registry, indent=2))
+        except Exception:
+            pass
 
     pinned_projects = [p for p in display_projects if p['is_pinned']]
 
@@ -1536,20 +1577,21 @@ def generate_html(projects: List[Dict]) -> str:
     n_github = sum(1 for p in display_projects if p.get('source') == 'github')
 
     filter_chips = ['<button class="fchip active" data-filter="all" onclick="setFilter(this,\'all\')">All</button>']
-    filter_chips.append(
-        f'<button class="fchip" data-filter="__local" onclick="setFilter(this,\'__local\')">💻 Local <span class="fchip-count">{n_local}</span></button>'
-    )
-    if pinned_projects:
+    if not PUBLIC_MODE:
         filter_chips.append(
-            f'<button class="fchip" data-filter="__pinned" onclick="setFilter(this,\'__pinned\')">📌 Pinned</button>'
+            f'<button class="fchip" data-filter="__local" onclick="setFilter(this,\'__local\')">💻 Local <span class="fchip-count">{n_local}</span></button>'
         )
-    for cat, count in present_categories:
-        emoji = cat_emoji.get(cat, '📁')
-        label = cat_label_override.get(cat, cat.title())
-        filter_chips.append(
-            f'<button class="fchip" data-filter="{cat}" onclick="setFilter(this,\'{cat}\')">'
-            f'{emoji} {label} <span class="fchip-count">{count}</span></button>'
-        )
+        if pinned_projects:
+            filter_chips.append(
+                f'<button class="fchip" data-filter="__pinned" onclick="setFilter(this,\'__pinned\')">📌 Pinned</button>'
+            )
+        for cat, count in present_categories:
+            emoji = cat_emoji.get(cat, '📁')
+            label = cat_label_override.get(cat, cat.title())
+            filter_chips.append(
+                f'<button class="fchip" data-filter="{cat}" onclick="setFilter(this,\'{cat}\')">'
+                f'{emoji} {label} <span class="fchip-count">{count}</span></button>'
+            )
     filter_chips_html = ''.join(filter_chips)
 
     group_chip_bits = []
@@ -1606,13 +1648,47 @@ def generate_html(projects: List[Dict]) -> str:
         if group_rows_html else ""
     )
 
+    if PUBLIC_MODE:
+        page_title = "Kyle Mathewson — Projects"
+        page_description = (
+            '<meta name="description" content="Public GitHub projects in grid and feed views.">\n'
+            '    <link rel="canonical" href="https://kylemath.github.io/cursor-launcher/">'
+        )
+        header_heading = "Projects"
+        header_right = f'''<div class="stats">
+                            <div class="stat">{total} public repos</div>
+                            <div class="stat">{with_catalogue} catalogued</div>
+                        </div>'''
+        extra_controls = '''<a class="port-overview-btn" href="https://github.com/kylemath">GitHub</a>
+                    <a class="port-overview-btn" href="https://kylemathewson.com">Homepage</a>
+                    <button class="legend-btn" onclick="toggleLegend()" title="Show key for icons and colors">? Legend</button>'''
+        public_page_js = "true"
+    else:
+        page_title = "Cursor Project Launcher"
+        page_description = ""
+        header_heading = "Project Launcher"
+        header_right = f'''<div class="stats">
+                            <div class="stat">{total} projects</div>
+                            <div class="stat">{with_catalogue} catalogued</div>
+                            <div class="stat">{len(pinned_projects)} pinned</div>
+                            <div class="stat" id="serverStatus">⏳</div>
+                        </div>
+                        <button class="shutdown-btn" onclick="shutdownDashboard()" title="Stop the Project Launcher server">⏹ Stop server</button>'''
+        extra_controls = '''<button class="port-overview-btn" id="portsBtn" onclick="openPorts()" title="All designated ports + conflicts">🔌 Ports</button>
+                    <button class="port-overview-btn newproj-btn" onclick="newProject()" title="Create a new folder in ~ and open it in Cursor">＋ New project</button>
+                    <button class="port-overview-btn" id="refreshBtn" onclick="reloadWithFreshCards()" title="Rescan local folders and git status, then reload">↻ Refresh</button>
+                    <button class="port-overview-btn" id="ghRefreshBtn" onclick="refreshGithub()" title="Re-fetch your GitHub repos (incl. private)">↻ GitHub</button>
+                    <button class="legend-btn" onclick="toggleLegend()" title="Show key for icons and colors">? Legend</button>'''
+        public_page_js = "false"
+
     # Full HTML
     page = f'''<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cursor Project Launcher</title>
+    <title>{page_title}</title>
+    {page_description}
     <style>
         * {{ margin: 0; padding: 0; box-sizing: border-box; }}
         
@@ -2454,7 +2530,7 @@ def generate_html(projects: List[Dict]) -> str:
 
         .port-overview-btn {{ border:1px solid var(--border); background:var(--surface); color:var(--text-dim);
             border-radius:10px; padding:9px 13px; font-size:13px; font-weight:600; cursor:pointer;
-            display:inline-flex; align-items:center; gap:6px; }}
+            display:inline-flex; align-items:center; gap:6px; text-decoration:none; }}
         .port-overview-btn:hover {{ color:var(--text); border-color:var(--border-strong); }}
         .port-overview-btn .badge-dot {{ width:8px; height:8px; border-radius:50%; background:var(--green); display:none; }}
         .port-overview-btn.has-conflict {{ border-color:#ef6e6e; color:#ef6e6e; }}
@@ -2524,16 +2600,10 @@ def generate_html(projects: List[Dict]) -> str:
             <header>
                 <div class="header-top">
                     <div>
-                        <h1><span class="logo-dot"></span> Project Launcher</h1>
+                        <h1><span class="logo-dot"></span> {header_heading}</h1>
                     </div>
                     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-                        <div class="stats">
-                            <div class="stat">{total} projects</div>
-                            <div class="stat">{with_catalogue} catalogued</div>
-                            <div class="stat">{len(pinned_projects)} pinned</div>
-                            <div class="stat" id="serverStatus">⏳</div>
-                        </div>
-                        <button class="shutdown-btn" onclick="shutdownDashboard()" title="Stop the Project Launcher server">⏹ Stop server</button>
+                        {header_right}
                     </div>
                 </div>
                 <div class="controls">
@@ -2546,11 +2616,7 @@ def generate_html(projects: List[Dict]) -> str:
                         <button class="view-btn" data-view="feed" onclick="switchView('feed')">☰ Feed</button>
                         <button class="view-btn" data-view="table" onclick="switchView('table')">▤ Table</button>
                     </div>
-                    <button class="port-overview-btn" id="portsBtn" onclick="openPorts()" title="All designated ports + conflicts">🔌 Ports</button>
-                    <button class="port-overview-btn newproj-btn" onclick="newProject()" title="Create a new folder in ~ and open it in Cursor">＋ New project</button>
-                    <button class="port-overview-btn" id="refreshBtn" onclick="reloadWithFreshCards()" title="Rescan local folders and git status, then reload">↻ Refresh</button>
-                    <button class="port-overview-btn" id="ghRefreshBtn" onclick="refreshGithub()" title="Re-fetch your GitHub repos (incl. private)">↻ GitHub</button>
-                    <button class="legend-btn" onclick="toggleLegend()" title="Show key for icons and colors">? Legend</button>
+                    {extra_controls}
                 </div>
             </header>
 
@@ -2796,6 +2862,7 @@ def generate_html(projects: List[Dict]) -> str:
 
     <script>
         const isLocalServer = window.location.protocol === 'http:' && window.location.hostname === 'localhost';
+        const PUBLIC_PAGE = {public_page_js};
         const HAS_GROUP_ROWS = {has_group_rows};
         const REPO_GROUPS = {groups_json};
         let mgPath = null;
@@ -3676,7 +3743,7 @@ def generate_html(projects: List[Dict]) -> str:
         document.addEventListener('keydown', e => {{ if (e.key === 'Escape') {{ closeManage(); closePorts(); }} }});
         
         (function() {{
-            let v = HAS_GROUP_ROWS ? 'rows' : 'grid';
+            let v = PUBLIC_PAGE ? 'grid' : (HAS_GROUP_ROWS ? 'rows' : 'grid');
             const h = (location.hash || '').replace('#', '');
             if (['rows', 'grid', 'feed', 'table'].includes(h)) {{
                 v = h;
@@ -3684,6 +3751,7 @@ def generate_html(projects: List[Dict]) -> str:
                 try {{
                     const saved = localStorage.getItem('dashboardView');
                     if (saved && ['rows', 'grid', 'feed', 'table'].includes(saved)) v = saved;
+                    else if (PUBLIC_PAGE) v = 'grid';
                     else if (HAS_GROUP_ROWS) v = 'rows';
                 }} catch (e) {{}}
             }}
@@ -4054,25 +4122,26 @@ def main(argv=None):
     out_file = args.output or (PUBLIC_OUTPUT_FILE if PUBLIC_MODE else OUTPUT_FILE)
     if PUBLIC_MODE:
         print("🌐 PUBLIC mode: only repos public on GitHub, no home scan, no local paths")
+        projects = []
+    else:
+        print("🔍 Scanning CODING folder for all projects...")
+        projects = find_all_projects()
 
-    print("🔍 Scanning CODING folder for all projects...")
-    projects = find_all_projects()
-    
-    if not projects:
-        print("❌ No projects found!")
-        return
-    
-    print(f"✅ Found {len(projects)} projects")
-    
-    # Stats
-    pinned = [p for p in projects if p['is_pinned']]
-    with_catalogue = [p for p in projects if p['has_catalogue']]
-    cursor_recent = [p for p in projects if p['cursor_recent_idx'] is not None]
-    
-    print(f"📌 {len(pinned)} pinned")
-    print(f"📋 {len(with_catalogue)} with catalogue.json")
-    print(f"🕐 {len(cursor_recent)} in Cursor's recent")
-    
+        if not projects:
+            print("❌ No projects found!")
+            return
+
+        print(f"✅ Found {len(projects)} projects")
+
+        # Stats
+        pinned = [p for p in projects if p['is_pinned']]
+        with_catalogue = [p for p in projects if p['has_catalogue']]
+        cursor_recent = [p for p in projects if p['cursor_recent_idx'] is not None]
+
+        print(f"📌 {len(pinned)} pinned")
+        print(f"📋 {len(with_catalogue)} with catalogue.json")
+        print(f"🕐 {len(cursor_recent)} in Cursor's recent")
+
     print("📝 Generating HTML dashboard...")
     html = generate_html(projects)
 

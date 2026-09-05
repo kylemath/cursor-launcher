@@ -43,7 +43,9 @@ or `lsof -ti :8847 | xargs kill`.
 - **▤ Table** — sortable spreadsheet: Project, Category, Branch, Sync, Dirty,
   Remote, Last commit, Modified, Status, Port, **Cat**, **Shot**, Actions.
 
-Deep links: `#grid`, `#feed`, `#table`.
+Deep links: `#grid`, `#feed`, `#table`. Public GitHub repos only:
+[kylemath.github.io/cursor-launcher](https://kylemath.github.io/cursor-launcher/)
+(`#grid` / `#feed`). Private repos stay on the local dashboard.
 
 ## How projects are organized
 
@@ -135,6 +137,8 @@ launcher adds an optional `server` block:
 - `generate_dashboard.py` — scans folders and writes `dashboard.html`
   (git-ignored: private names, local paths, embedded shots). `--public` writes
   a sanitized `dashboard_public.html` (public GitHub repos only, no local paths).
+  GitHub Actions deploys that file to
+  [kylemath.github.io/cursor-launcher](https://kylemath.github.io/cursor-launcher/).
 - `github_repos.py` — `gh repo list` cache (`github_cache.json`, git-ignored).
 - `server_launcher.py` — resolves and runs each project's dev server.
 - `extension/` — Cursor / VS Code companion: status-bar **▶ Run :PORT**.

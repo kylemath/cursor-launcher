@@ -1,17 +1,37 @@
-name: Build Public Dashboard
+name: Public dashboard
 
-# SECURITY: This workflow must never commit a generated dashboard back to the
-# repo. The full dashboard embeds private repo names, local paths, and
-# screenshots. Only the sanitized --public build is produced here, and it is
-# published as a build artifact (manual trigger only) rather than committed.
+# SECURITY: Never commit a generated dashboard. The full local dashboard embeds
+# private repo names, local paths, and screenshots. This workflow builds the
+# sanitized --public HTML (public GitHub repos only) and deploys it to Pages.
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * *"
+  push:
+    branches: [main]
+    paths:
+      - "generate_dashboard.py"
+      - "github_repos.py"
+      - "repo_groups.json"
+      - "repos.json"
+      - ".github/workflows/update-dashboard.yml"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
 
 jobs:
-  build-public-dashboard:
+  build-and-deploy:
     runs-on: ubuntu-latest
-
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -19,17 +39,25 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
+          python-version: "3.x"
 
       - name: Generate sanitized public dashboard
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           python3 generate_dashboard.py --public
+          test -f dashboard_public.html
+          mkdir -p _site
+          cp dashboard_public.html _site/index.html
 
-      - name: Upload public dashboard artifact
-        uses: actions/upload-artifact@v4
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          name: dashboard-public
-          path: dashboard_public.html
-          if-no-files-found: warn
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
