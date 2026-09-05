@@ -1649,12 +1649,12 @@ def generate_html(projects: List[Dict]) -> str:
     )
 
     if PUBLIC_MODE:
-        page_title = "Kyle Mathewson — Projects"
+        page_title = "Kyle Mathewson — Project library"
         page_description = (
-            '<meta name="description" content="Public GitHub projects in grid and feed views.">\n'
+            '<meta name="description" content="Public GitHub projects — grid and feed.">\n'
             '    <link rel="canonical" href="https://kylemath.github.io/cursor-launcher/">'
         )
-        header_heading = "Projects"
+        header_heading = "Project library"
         header_right = f'''<div class="stats">
                             <div class="stat">{total} public repos</div>
                             <div class="stat">{with_catalogue} catalogued</div>

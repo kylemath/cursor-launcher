@@ -43,9 +43,9 @@ or `lsof -ti :8847 | xargs kill`.
 - **▤ Table** — sortable spreadsheet: Project, Category, Branch, Sync, Dirty,
   Remote, Last commit, Modified, Status, Port, **Cat**, **Shot**, Actions.
 
-Deep links: `#grid`, `#feed`, `#table`. Public GitHub repos only:
-[kylemath.github.io/cursor-launcher](https://kylemath.github.io/cursor-launcher/)
-(`#grid` / `#feed`). Private repos stay on the local dashboard.
+Deep links: `#grid`, `#feed`, `#table`. Public GitHub repos only — the
+**[Project library](https://kylemath.github.io/cursor-launcher/)**.
+Private repos stay on the local dashboard.
 
 ## How projects are organized
 
