@@ -53,9 +53,16 @@ Then in the dashboard click **↻ GitHub**. That lists every repo on `kylemath` 
 Nothing in this repo copies other machines' local-only folders or local-only git repos. Pins, recents, and `dashboard.html` are gitignored and stay on each machine. After you clone a GitHub card (or copy a folder yourself), regenerate or restart so it shows as local.
 
 Publishing a local-only folder: **⚙ Manage → 🚀 Publish with defaults**, or the
-card **🐙** button (uses recommended defaults after confirm). Needs
-`gh auth login`. Static sites default to public + GitHub Pages; backends
-default to private. The old terminal `gir` script still works independently.
+card **🐙** button (uses recommended defaults after confirm). Same thing from
+the terminal (needs `gh auth login`):
+
+```bash
+python3 publish_repo.py ~/path/to/project
+python3 publish_repo.py ~/path/to/project --preview
+```
+
+Static sites default to public + GitHub Pages; backends default to private.
+The old terminal `gir` script still works independently.
 
 ## Optional
 
@@ -81,6 +88,7 @@ cursor --install-extension cursor-server-launcher-0.2.0.vsix
 |---|---|
 | Empty or missing categories | Folders exist under `~/Coding/RESEARCH` (etc.). Every first-level subfolder is a project; `catalogue.json` is not required. |
 | No GitHub cards / no private repos | `gh auth status`, then **↻ GitHub**. |
+| Publish says `gh` is not installed | The Dock app has a tiny PATH. `gh` is usually `/opt/homebrew/bin/gh`. Restart **CursorLauncher.app** after `brew install gh` and `gh auth login`. |
 | Click does not open Cursor | `cursor --version` in a terminal; install the shell command from Cursor. |
 | Clone / Run / Ports do nothing | Use `http://localhost:8847`, not a `file://` dashboard. |
 | Port already in use | `lsof -ti :8847 \| xargs kill`, then start again. |

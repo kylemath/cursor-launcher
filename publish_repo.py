@@ -8,13 +8,15 @@ GitHub remote, visibility, and optional GitHub Pages — no prompts, no AI.
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional, Sequence
 
 
 DEFAULT_GITIGNORE = """# OS generated files
@@ -80,7 +82,56 @@ COMMON_OSX_FOLDERS = {
 LARGE_FILE_BYTES = 10 * 1024 * 1024
 
 
+# Dock .app launches have PATH=/usr/bin:/bin:/usr/sbin:/sbin — Homebrew lives elsewhere.
+LOGIN_PATH_DIRS = (
+    '/opt/homebrew/bin',
+    '/opt/homebrew/sbin',
+    '/usr/local/bin',
+)
+GH_CANDIDATES = (
+    '/opt/homebrew/bin/gh',
+    '/usr/local/bin/gh',
+)
+_GH_BIN: Optional[str] = None
+
+
+def ensure_login_path() -> None:
+    """Prepend Homebrew and ~/.local/bin so gh/git are findable from a .app."""
+    extras = list(LOGIN_PATH_DIRS) + [str(Path.home() / '.local' / 'bin')]
+    parts = [p for p in os.environ.get('PATH', '').split(os.pathsep) if p]
+    changed = False
+    for extra in reversed(extras):
+        if extra and os.path.isdir(extra) and extra not in parts:
+            parts.insert(0, extra)
+            changed = True
+    if changed:
+        os.environ['PATH'] = os.pathsep.join(parts)
+
+
+def find_gh() -> Optional[str]:
+    """Absolute path to gh, even when PATH is the macOS .app default."""
+    global _GH_BIN
+    if _GH_BIN:
+        return _GH_BIN
+    ensure_login_path()
+    found = shutil.which('gh')
+    if found:
+        _GH_BIN = found
+        return found
+    home_local = Path.home() / '.local' / 'bin' / 'gh'
+    for candidate in (*GH_CANDIDATES, str(home_local)):
+        if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+            _GH_BIN = candidate
+            return candidate
+    return None
+
+
 def _run(cmd: List[str], cwd: Optional[str] = None, timeout: int = 30) -> subprocess.CompletedProcess:
+    if cmd and cmd[0] == 'gh':
+        exe = find_gh()
+        if not exe:
+            return subprocess.CompletedProcess(cmd, 127, '', 'GitHub CLI (gh) is not installed')
+        cmd = [exe, *cmd[1:]]
     return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout)
 
 
@@ -169,8 +220,11 @@ def find_screenshot(path: str) -> Optional[str]:
 
 
 def gh_status() -> Dict:
-    if not shutil.which('gh'):
-        return {'ok': False, 'message': 'GitHub CLI (gh) is not installed'}
+    if not find_gh():
+        return {
+            'ok': False,
+            'message': 'GitHub CLI (gh) is not installed — brew install gh, then restart the launcher',
+        }
     try:
         r = _run(['gh', 'auth', 'status'], timeout=10)
     except Exception as e:
@@ -679,3 +733,94 @@ def publish(
     except Exception as e:
         _step(steps, 'error', 'error', str(e))
         return {'status': 'error', 'message': str(e), 'steps': steps}
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog='publish_repo.py',
+        description=(
+            'Create a GitHub repo with gh and push this folder '
+            '(gir flow: git, README, catalogue hooks, Pages — no prompts).'
+        ),
+    )
+    parser.add_argument(
+        'path', nargs='?', default='.',
+        help='Project folder (default: current directory)',
+    )
+    parser.add_argument(
+        '--preview', action='store_true',
+        help='Print recommended defaults as JSON and exit',
+    )
+    vis = parser.add_mutually_exclusive_group()
+    vis.add_argument('--public', action='store_true', help='Create or update as a public repo')
+    vis.add_argument('--private', action='store_true', help='Create or update as a private repo')
+    pages = parser.add_mutually_exclusive_group()
+    pages.add_argument('--pages', action='store_true', help='Enable GitHub Pages from the default branch')
+    pages.add_argument('--no-pages', action='store_true', help='Do not enable GitHub Pages')
+    parser.add_argument('--name', help='GitHub repo name (default: folder or catalogue id)')
+    parser.add_argument('-m', '--message', help='Commit message')
+    return parser
+
+
+def resolve_cli_options(args, defaults: Dict) -> Dict:
+    if getattr(args, 'public', False):
+        visibility = 'public'
+    elif getattr(args, 'private', False):
+        visibility = 'private'
+    else:
+        visibility = defaults.get('visibility') or 'private'
+    if getattr(args, 'pages', False):
+        pages = True
+    elif getattr(args, 'no_pages', False):
+        pages = False
+    else:
+        pages = bool(defaults.get('pages'))
+    return {
+        'visibility': visibility,
+        'pages': pages,
+        'repo_name': args.name or defaults.get('repo_name'),
+        'commit_message': args.message,
+    }
+
+
+def main(argv: Optional[Sequence[str]] = None) -> int:
+    args = build_parser().parse_args(argv)
+    path = str(Path(args.path).expanduser().resolve())
+    preview_data = preview(path)
+    if args.preview:
+        print(json.dumps(preview_data, indent=2))
+        return 0 if preview_data.get('status') == 'ok' else 1
+    if preview_data.get('status') != 'ok':
+        print(preview_data.get('message') or 'Cannot publish this path', file=sys.stderr)
+        return 1
+
+    rec = preview_data.get('defaults') or {}
+    opts = resolve_cli_options(args, rec)
+    print(
+        f"Publishing {path} as {opts['repo_name']} "
+        f"({opts['visibility']}, pages={opts['pages']})",
+        file=sys.stderr,
+    )
+    result = publish(
+        path,
+        visibility=opts['visibility'],
+        pages=opts['pages'],
+        repo_name=opts['repo_name'],
+        commit_message=opts['commit_message'],
+    )
+    for step in result.get('steps') or []:
+        detail = step.get('detail') or ''
+        print(f"  [{step.get('status', '?'):5}] {step.get('name')}: {detail}")
+    if result.get('url'):
+        print(result['url'])
+    if result.get('pages_url'):
+        print(result['pages_url'])
+    if result.get('status') != 'ok':
+        print(result.get('message') or 'publish failed', file=sys.stderr)
+        return 1
+    print(result.get('message') or 'Published')
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

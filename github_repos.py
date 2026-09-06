@@ -28,6 +28,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Set
 
+import publish_repo as pr
+
 BASE_DIR = Path(__file__).resolve().parent
 CACHE_FILE = BASE_DIR / "github_cache.json"
 ASSETS_DIR = BASE_DIR / "gh_assets"
@@ -37,6 +39,11 @@ REPOS_LOCAL_FILE = BASE_DIR / "repos.local.json"
 
 
 def _run(args: List[str], timeout: int = 60) -> Optional[str]:
+    if args and args[0] == "gh":
+        exe = pr.find_gh()
+        if not exe:
+            return None
+        args = [exe, *args[1:]]
     try:
         out = subprocess.run(args, capture_output=True, text=True, timeout=timeout)
         if out.returncode == 0:
@@ -47,7 +54,7 @@ def _run(args: List[str], timeout: int = 60) -> Optional[str]:
 
 
 def gh_available() -> bool:
-    return _run(["gh", "auth", "token"], timeout=10) is not None
+    return bool(pr.find_gh()) and _run(["gh", "auth", "token"], timeout=10) is not None
 
 
 def _rel_time(iso: str) -> str:

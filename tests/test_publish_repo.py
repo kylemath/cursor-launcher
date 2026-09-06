@@ -2,10 +2,12 @@
 """Unit tests for publish_repo helpers (no GitHub network)."""
 
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
 import sys
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import publish_repo as pr
@@ -124,6 +126,74 @@ class PublishRepoHelpersTest(unittest.TestCase):
         self.assertFalse(pr.is_allowed_project_path(str(Path.home())))
         self.assertFalse(pr.is_allowed_project_path(str(Path.home() / 'Library')))
         self.assertFalse(pr.is_allowed_project_path('/tmp'))
+
+    def test_find_gh_without_path_uses_candidates(self):
+        fake_dir = self.root / 'bin'
+        fake_dir.mkdir()
+        fake = fake_dir / 'gh'
+        fake.write_text('#!/bin/sh\n')
+        fake.chmod(0o755)
+        pr._GH_BIN = None
+        try:
+            with mock.patch.object(pr, 'ensure_login_path'):
+                with mock.patch.object(pr.shutil, 'which', return_value=None):
+                    with mock.patch.object(pr, 'GH_CANDIDATES', (str(fake),)):
+                        found = pr.find_gh()
+        finally:
+            pr._GH_BIN = None
+        self.assertEqual(found, str(fake))
+
+    def test_find_gh_on_bare_macos_path(self):
+        if not any(os.path.isfile(p) and os.access(p, os.X_OK) for p in pr.GH_CANDIDATES):
+            self.skipTest('no Homebrew gh on this machine')
+        pr._GH_BIN = None
+        old = os.environ.get('PATH', '')
+        os.environ['PATH'] = '/usr/bin:/bin:/usr/sbin:/sbin'
+        try:
+            found = pr.find_gh()
+            status = pr.gh_status()
+        finally:
+            os.environ['PATH'] = old
+            pr._GH_BIN = None
+        self.assertTrue(found.endswith('/gh'))
+        self.assertTrue(status.get('ok'), status)
+
+    def test_cli_parser_defaults_and_flags(self):
+        parser = pr.build_parser()
+        ns = parser.parse_args([])
+        self.assertEqual(ns.path, '.')
+        self.assertFalse(ns.preview)
+        self.assertFalse(ns.public)
+        self.assertFalse(ns.private)
+        self.assertFalse(ns.pages)
+        self.assertFalse(ns.no_pages)
+        ns = parser.parse_args(['~/proj', '--public', '--pages', '--name', 'Demo', '-m', 'init'])
+        self.assertEqual(ns.path, '~/proj')
+        self.assertTrue(ns.public)
+        self.assertTrue(ns.pages)
+        self.assertEqual(ns.name, 'Demo')
+        self.assertEqual(ns.message, 'init')
+
+    def test_resolve_cli_options_overrides_and_defaults(self):
+        defaults = {'visibility': 'private', 'pages': False, 'repo_name': 'folder'}
+        parser = pr.build_parser()
+        opts = pr.resolve_cli_options(parser.parse_args([]), defaults)
+        self.assertEqual(opts['visibility'], 'private')
+        self.assertFalse(opts['pages'])
+        self.assertEqual(opts['repo_name'], 'folder')
+        opts = pr.resolve_cli_options(
+            parser.parse_args(['--public', '--pages', '--name', 'X']),
+            defaults,
+        )
+        self.assertEqual(opts['visibility'], 'public')
+        self.assertTrue(opts['pages'])
+        self.assertEqual(opts['repo_name'], 'X')
+        opts = pr.resolve_cli_options(
+            parser.parse_args(['--private', '--no-pages']),
+            {'visibility': 'public', 'pages': True, 'repo_name': 'folder'},
+        )
+        self.assertEqual(opts['visibility'], 'private')
+        self.assertFalse(opts['pages'])
 
 
 if __name__ == '__main__':

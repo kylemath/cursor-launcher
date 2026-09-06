@@ -72,10 +72,12 @@ the uncloned ones.
 This repo does **not** sync local-only folders or local-only git repos between
 machines. Pins, recents, and the generated dashboard are gitignored. Publishing
 a local folder uses **⚙ Manage → 🚀 Publish with defaults** (or the card **🐙**
-button): git init, catalogue, screenshot, `gh repo create`, optional GitHub
-Pages, public or private. Same steps as `gir` from
+button), or the same flow from the terminal with `publish_repo.py` (see
+below): git init, catalogue, screenshot, `gh repo create --source=. --push`,
+optional GitHub Pages, public or private. Same steps as `gir` from
 [gitBash](https://github.com/kylemath/gitBash), without the interactive
-prompts or AI. Requires `gh auth login`.
+prompts or AI. Requires [GitHub CLI](https://cli.github.com/) and
+`gh auth login`. Do not use Cursor’s `origin` CLI for this.
 
 ## Git status on every card
 
@@ -96,8 +98,19 @@ live **running** state. **🔌 Ports** lists every port, who uses it, and Stop.
 - **🚀 Publish with defaults**: git repo if needed, `catalogue.json`,
   screenshot, GitHub repo (public/private), optional Pages. Static sites
   default to public + Pages; backends default to private. Toggle before
-  clicking, or **Reset defaults**. Card **🐙** runs the recommended defaults
-  after a confirm.
+  clicking, or **Reset defaults**. Card **🐙** runs those defaults after a
+  confirm. Same pipeline from the terminal (`gh`, not Cursor `origin`):
+
+  ```bash
+  python3 publish_repo.py ~/path/to/project            # recommended defaults
+  python3 publish_repo.py ~/path/to/project --preview  # JSON, no side effects
+  python3 publish_repo.py . --public --pages           # this folder, Pages on
+  python3 publish_repo.py . --private --no-pages -m "init commit"
+  ```
+
+  Creates a README if missing, embeds `screenshot.png`, and adds a Live Demo
+  link when Pages is enabled. Existing remotes are updated and pushed — a
+  second repo is never created.
 - **✨ Auto-generate catalogue + screenshot**: local-only — builds
   `catalogue.json` from folder name, README, git remote, and detected server;
   captures a small `screenshot.png` without creating a GitHub repo.
@@ -133,7 +146,8 @@ launcher adds an optional `server` block:
 - `server.py` — local server (port 8847) and actions (open, run, screenshot,
   catalogue, ports, clone, publish).
 - `publish_repo.py` — non-interactive GitHub publish (`gir` flow: git,
-  catalogue, screenshot, `gh repo create`, Pages).
+  README, catalogue, screenshot, `gh repo create --source=. --push`, Pages).
+  Dashboard **🐙** and `python3 publish_repo.py [path]` share this module.
 - `generate_dashboard.py` — scans folders and writes `dashboard.html`
   (git-ignored: private names, local paths, embedded shots). `--public` writes
   a sanitized `dashboard_public.html` (public GitHub repos only, no local paths).

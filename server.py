@@ -20,6 +20,9 @@ import github_repos
 import publish_repo
 import git_sync
 
+# Dock .app PATH is /usr/bin:/bin — put Homebrew gh on PATH before any request.
+publish_repo.ensure_login_path()
+
 
 class ThreadingHTTPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     """Threaded server so long operations (clone, screenshot, GitHub refresh)
@@ -938,6 +941,7 @@ def kill_existing_server():
 
 
 def main():
+    publish_repo.ensure_login_path()
     # Kill any existing server on our port
     kill_existing_server()
     

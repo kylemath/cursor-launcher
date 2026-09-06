@@ -1,6 +1,5 @@
 #!/bin/bash
-# Cursor Project Launcher — starts the local server and opens the PWA
-# (or Chrome so you can install it). Works from Terminal or the .app wrapper.
+# Cursor Project Launcher — start the local server, then open a regular Chrome window.
 
 PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 PORT=8847
@@ -22,6 +21,9 @@ Put the repo at ~/cursor-launcher, or keep CursorLauncher.app inside the project
 fi
 
 printf '%s\n' "$PROJECT_DIR" > "$POINTER"
+
+# .app double-click PATH is /usr/bin:/bin:/usr/sbin:/sbin — Homebrew gh lives elsewhere
+export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:$HOME/.local/bin:$PATH"
 
 # ---------- Find a real Python 3 (not the Xcode stub) ----------
 PY=""
@@ -78,47 +80,14 @@ if ! curl -s "$URL" -o /dev/null 2>/dev/null; then
   exit 1
 fi
 
-# Prefer an installed Chrome PWA (own Dock icon) over a regular Chrome tab
-PWA_APP=""
-for dir in "$HOME/Applications/Chrome Apps.localized" "$HOME/Applications/Chrome Apps" "$HOME/Applications"; do
-  for name in "$APP_NAME" "Cursor Project Launcher" "CursorLauncher"; do
-    if [ -d "$dir/$name.app" ]; then
-      PWA_APP="$dir/$name.app"
-      break 2
-    fi
-  done
-done
-
-if [ -n "$PWA_APP" ]; then
-  echo "Launching installed PWA: $PWA_APP"
-  open -a "$PWA_APP"
+# Regular Chrome window (same as before). Do not use --app / --args —
+# those hide the tab bar or fail to open the URL if Chrome is already running.
+if open -a "Google Chrome" "$URL" 2>/dev/null; then
+    echo "Opened in Chrome: $URL"
+elif open -a "Safari" "$URL" 2>/dev/null; then
+    echo "Opened in Safari: $URL"
 else
-  echo "PWA not installed — opening in Chrome so it can be installed."
-  if   [ -d "/Applications/Google Chrome.app" ]; then
-    open -na "Google Chrome" --args "$URL"
-  elif [ -d "/Applications/Chromium.app" ]; then
-    open -na "Chromium" --args "$URL"
-  elif [ -d "/Applications/Microsoft Edge.app" ]; then
-    open -na "Microsoft Edge" --args "$URL"
-  elif [ -d "/Applications/Brave Browser.app" ]; then
-    open -na "Brave Browser" --args "$URL"
-  elif [ -d "/Applications/Safari.app" ]; then
-    open -a "Safari" "$URL"
-  else
     open "$URL"
-  fi
-
-  FLAG="$PROJECT_DIR/.pwa-install-hinted"
-  if [ ! -f "$FLAG" ]; then
-    touch "$FLAG"
-    sleep 3
-    osascript -e "display dialog \"To get a standalone app with its own Dock icon:
-
-1. Look for the install icon (⊕) on the right side of the Chrome address bar
-2. Click it and choose Install
-
-Next time you launch, it will open as its own app with the new Cursor + picker icon.\" with title \"$APP_NAME — Install as App\" buttons {\"OK\"} default button \"OK\"" &
-  fi
 fi
 
 wait "$SERVER_PID"
