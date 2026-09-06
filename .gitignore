@@ -61,6 +61,13 @@ repo_groups.local.json
 # embedded screenshots. Never commit this to the public repo.
 dashboard.html
 
+# App launcher / PWA build leftovers
+build/
+.app-launcher.log
+*.app-launcher.log
+.pwa-install-hinted
+dev-dist/
+
 # Sanitized build (generate_dashboard.py --public). Safe to share, but too
 # large to track; use `git add -f dashboard_public.html` if you really want it.
 dashboard_public.html

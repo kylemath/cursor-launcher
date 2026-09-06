@@ -12,6 +12,7 @@ import subprocess
 import html
 import urllib.request
 import urllib.error
+import urllib.parse
 from pathlib import Path
 from datetime import datetime
 from typing import List, Dict, Optional, Set
@@ -754,12 +755,24 @@ def github_card_open_actions(project: Dict) -> str:
     )
 
 
+def _local_screenshot_src(file_path: str) -> Optional[str]:
+    """Serve a local image via the dashboard server instead of inlining base64.
+
+    Embedding every screenshot.png as a data URI made dashboard.html tens of
+    megabytes, which broke Chrome's PWA install and made the page crawl.
+    """
+    if file_path and os.path.isfile(file_path):
+        return '/screenshot-file?file=' + urllib.parse.quote(file_path, safe='')
+    return None
+
+
 def resolve_screenshot_src(project: Dict) -> Optional[str]:
     """Return a value usable as an <img src> for a project card.
 
     Order of preference:
-      1. A physical file (local screenshot.png or a downloaded GitHub asset),
-         embedded as a base64 data URI (skipped in --public so Pages HTML stays small).
+      1. A physical file (local screenshot.png or a downloaded GitHub asset).
+         Local dashboard uses /screenshot-file so HTML stays small enough
+         for the PWA. Public mode skips local files and hotlinks instead.
       2. The catalogue.json `screenshot` field (the same field the homepage
          uses). Absolute http(s)/data URLs are used as-is; relative paths like
          `./screenshot.png` are resolved against the repo's raw URL (for remote
@@ -770,9 +783,9 @@ def resolve_screenshot_src(project: Dict) -> Optional[str]:
     # Public dashboard hotlinks instead of embedding (keeps the Pages file small).
     file_path = project.get('screenshot_path')
     if file_path and not PUBLIC_MODE:
-        data = encode_image_to_base64(file_path)
-        if data:
-            return data
+        served = _local_screenshot_src(file_path)
+        if served:
+            return served
 
     # 2) Fall back to the catalogue `screenshot` field
     url = (project.get('screenshot_url') or '').strip()
@@ -795,12 +808,12 @@ def resolve_screenshot_src(project: Dict) -> Optional[str]:
             return base.rstrip('/') + '/' + rel
         return None
 
-    # Local project: resolve relative to the project folder and embed it
+    # Local project: resolve relative to the project folder
     if PUBLIC_MODE:
         return None
     proj_path = project.get('path')
     if proj_path:
-        return encode_image_to_base64(os.path.join(proj_path, rel))
+        return _local_screenshot_src(os.path.join(proj_path, rel))
     return None
 
 
@@ -1689,6 +1702,10 @@ def generate_html(projects: List[Dict]) -> str:
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{page_title}</title>
     {page_description}
+    <meta name="theme-color" content="#1a1a2e">
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png">
+    <link rel="manifest" href="manifest.webmanifest">
     <style>
         * {{ margin: 0; padding: 0; box-sizing: border-box; }}
         
@@ -2179,8 +2196,8 @@ def generate_html(projects: List[Dict]) -> str:
             background:none; -webkit-text-fill-color:currentColor; color:var(--text);
             display:flex; align-items:center; gap:10px;
         }}
-        header h1 .logo-dot {{ width:11px; height:11px; border-radius:3px;
-            background:linear-gradient(135deg,var(--accent),var(--accent-2)); }}
+        header h1 .logo-dot {{ width:22px; height:22px; border-radius:6px;
+            object-fit:cover; flex-shrink:0; }}
         .subtitle {{ font-size:12.5px; color:var(--text-faint); }}
 
         .stats {{ margin-top:0; }}
@@ -2600,7 +2617,7 @@ def generate_html(projects: List[Dict]) -> str:
             <header>
                 <div class="header-top">
                     <div>
-                        <h1><span class="logo-dot"></span> {header_heading}</h1>
+                        <h1><img class="logo-dot" src="apple-touch-icon.png" alt="" width="22" height="22"> {header_heading}</h1>
                     </div>
                     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
                         {header_right}
@@ -4042,6 +4059,9 @@ def generate_html(projects: List[Dict]) -> str:
         }}
 
         if (isLocalServer) {{ pollLiveServers(); refreshPortStates(); }}
+        if ('serviceWorker' in navigator) {{
+            navigator.serviceWorker.register('sw.js');
+        }}
     </script>
 </body>
 </html>

@@ -49,6 +49,10 @@ jobs:
           test -f dashboard_public.html
           mkdir -p _site
           cp dashboard_public.html _site/index.html
+          for f in manifest.webmanifest sw.js icon-192.png icon-512.png \
+                   apple-touch-icon.png favicon-32.png favicon-16.png; do
+            [ -f "$f" ] && cp "$f" _site/
+          done
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

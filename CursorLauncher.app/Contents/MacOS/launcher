@@ -1,37 +1,32 @@
 #!/bin/bash
-# Cursor Project Launcher — Dock App
-# Works from the repo copy or from /Applications after the folder moves.
+# Thin wrapper: find the project, then run scripts/launch.sh
 
 BUNDLE_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 POINTER="$HOME/.cursor-launcher-dir"
-PORT=8847
 
 find_project() {
-  # 1. .app still lives inside the project (next to server.py)
   local sibling
   sibling="$(cd "$BUNDLE_DIR/.." && pwd)"
-  if [ -f "$sibling/server.py" ]; then
+  if [ -f "$sibling/scripts/launch.sh" ]; then
     echo "$sibling"
     return 0
   fi
 
-  # 2. Last known location (survives copy-to-/Applications and folder moves)
   if [ -f "$POINTER" ]; then
     local stored
     stored=$(cat "$POINTER" 2>/dev/null)
-    if [ -n "$stored" ] && [ -f "$stored/server.py" ]; then
+    if [ -n "$stored" ] && [ -f "$stored/scripts/launch.sh" ]; then
       echo "$stored"
       return 0
     fi
   fi
 
-  # 3. Common places this repo has lived
   local candidate
   for candidate in \
     "$HOME/cursor-launcher" \
     "$HOME/Coding/TOOLS/cursor-launcher" \
     "$HOME/Coding/cursor-launcher"; do
-    if [ -f "$candidate/server.py" ]; then
+    if [ -f "$candidate/scripts/launch.sh" ]; then
       echo "$candidate"
       return 0
     fi
@@ -42,80 +37,12 @@ find_project() {
 
 PROJECT_DIR="$(find_project)" || true
 
-if [ -z "$PROJECT_DIR" ] || [ ! -f "$PROJECT_DIR/server.py" ]; then
+if [ -z "$PROJECT_DIR" ] || [ ! -f "$PROJECT_DIR/scripts/launch.sh" ]; then
   osascript -e 'display dialog "Could not find the cursor-launcher project.
 
 Put the repo at ~/cursor-launcher, or keep CursorLauncher.app inside the project folder and launch it once from there." with title "Cursor Launcher" buttons {"OK"} default button "OK" with icon stop'
   exit 1
 fi
 
-# Remember this location so a Dock /Applications pin keeps working
 printf '%s\n' "$PROJECT_DIR" > "$POINTER"
-
-LOG="$PROJECT_DIR/.app-launcher.log"
-exec > "$LOG" 2>&1
-echo "=== Cursor Launcher started at $(date) ==="
-echo "BUNDLE_DIR: $BUNDLE_DIR"
-echo "PROJECT_DIR: $PROJECT_DIR"
-
-# ---------- Find a real Python 3 (not the Xcode stub) ----------
-PY=""
-for candidate in \
-    "$HOME/.pyenv/shims/python3" \
-    "/opt/homebrew/bin/python3" \
-    "/usr/local/bin/python3" \
-    "/usr/bin/python3"; do
-    if [ -x "$candidate" ] && "$candidate" -c "import http.server" 2>/dev/null; then
-        PY="$candidate"
-        break
-    fi
-done
-
-if [ -z "$PY" ]; then
-    osascript -e 'display dialog "Cursor Launcher: could not find Python 3. Install it via Homebrew: brew install python" with title "Cursor Launcher" buttons {"OK"} default button "OK" with icon stop'
-    exit 1
-fi
-
-echo "Using Python: $PY ($($PY --version 2>&1))"
-
-# ---------- Kill any stale server on our port ----------
-STALE=$(lsof -ti :$PORT 2>/dev/null)
-if [ -n "$STALE" ]; then
-    echo "Killing stale server (PID $STALE)"
-    kill -9 $STALE 2>/dev/null
-    sleep 0.5
-fi
-
-# ---------- Regenerate dashboard ----------
-echo "Regenerating dashboard..."
-cd "$PROJECT_DIR"
-"$PY" "$PROJECT_DIR/generate_dashboard.py" >> "$LOG" 2>&1
-
-# ---------- Start server ----------
-# CL_NO_BROWSER stops server.py from opening its own (default-browser) tab;
-# this script opens Chrome below, so we avoid a duplicate page.
-echo "Starting server on port $PORT..."
-CL_NO_BROWSER=1 "$PY" "$PROJECT_DIR/server.py" >> "$LOG" 2>&1 &
-SERVER_PID=$!
-echo "Server PID: $SERVER_PID"
-
-# ---------- Wait until accepting connections (up to 15s) ----------
-for i in $(seq 1 30); do
-    if curl -s "http://localhost:$PORT/" -o /dev/null 2>/dev/null; then
-        echo "Server ready after ~$((i / 2))s"
-        break
-    fi
-    sleep 0.5
-done
-
-# ---------- Open in Chrome, fall back to default browser ----------
-URL="http://localhost:$PORT/"
-if open -a "Google Chrome" "$URL" 2>/dev/null; then
-    echo "Opened in Chrome: $URL"
-elif open -a "Safari" "$URL" 2>/dev/null; then
-    echo "Opened in Safari: $URL"
-else
-    open "$URL"
-fi
-
-wait $SERVER_PID
+exec "$PROJECT_DIR/scripts/launch.sh"

@@ -163,13 +163,15 @@ class CursorLauncherHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_json_response(400, {"status": "error", "message": "Invalid path"})
             return
 
-        # Serve a project's screenshot.png (for the modal preview)
+        # Serve a project's screenshot.png (cards + modal preview)
         if parsed.path == '/screenshot-file':
-            path = query.get('path', [''])[0]
-            shot = os.path.join(path, 'screenshot.png') if path else ''
-            if shot and os.path.isfile(shot):
+            file_path = query.get('file', [''])[0]
+            if not file_path:
+                path = query.get('path', [''])[0]
+                file_path = os.path.join(path, 'screenshot.png') if path else ''
+            if self.allowed_screenshot_file(file_path):
                 try:
-                    with open(shot, 'rb') as f:
+                    with open(file_path, 'rb') as f:
                         data = f.read()
                     self.send_response(200)
                     self.send_header('Content-type', 'image/png')
@@ -279,6 +281,27 @@ class CursorLauncherHandler(http.server.SimpleHTTPRequestHandler):
             self.path = '/dashboard.html'
         
         return super().do_GET()
+
+    def do_HEAD(self):
+        parsed = urllib.parse.urlparse(self.path)
+        if parsed.path == '/':
+            self.path = '/dashboard.html'
+        return super().do_HEAD()
+
+    def guess_type(self, path):
+        if str(path).endswith('.webmanifest'):
+            return 'application/manifest+json'
+        return super().guess_type(path)
+
+    def allowed_screenshot_file(self, file_path):
+        """Only serve screenshot.png files or images stored in gh_assets/."""
+        if not file_path or not os.path.isfile(file_path):
+            return False
+        real = os.path.realpath(file_path)
+        assets = str((DASHBOARD_DIR / 'gh_assets').resolve())
+        if real.startswith(assets + os.sep):
+            return real.lower().endswith(('.png', '.jpg', '.jpeg', '.webp', '.gif'))
+        return os.path.basename(real) == 'screenshot.png'
     
     def send_json_response(self, code, data):
         """Send a JSON response."""
