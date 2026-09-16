@@ -2676,8 +2676,7 @@ def generate_html(projects: List[Dict]) -> str:
                     </div>
                     <div class="legend-section">
                         <div class="legend-title">Card actions</div>
-                        <div class="legend-row"><b>Click</b> → Open project in current Cursor window</div>
-                        <div class="legend-row"><b>⌘/Ctrl+Click</b> → Open in a new Cursor window</div>
+                        <div class="legend-row"><b>Click</b> → Open project in a new Cursor window</div>
                         <div class="legend-row"><b>▶ Run</b> → Start dev server + open in Chrome</div>
                         <div class="legend-row"><b>🚀 Both</b> → Open in Cursor + start server + Chrome</div>
                         <div class="legend-row"><b>⚙ Manage</b> → Edit catalogue, publish to GitHub, capture screenshot</div>
@@ -3082,7 +3081,7 @@ def generate_html(projects: List[Dict]) -> str:
         
         function mgOpenCursor() {{
             if (!mgPath) return;
-            if (isLocalServer) fetch('/open-in-cursor?path=' + encodeURIComponent(mgPath) + '&new=false');
+            if (isLocalServer) fetch('/open-in-cursor?path=' + encodeURIComponent(mgPath) + '&new=true');
             showNotification('Opening in Cursor', 'success');
         }}
         function mgOpenReadme() {{ mgOpenFile('README.md'); }}
@@ -3861,22 +3860,18 @@ def generate_html(projects: List[Dict]) -> str:
         function openProject(path, event) {{
             event.preventDefault();
             event.stopPropagation();
-            const newWindow = event.ctrlKey || event.metaKey || event.shiftKey;
-            
             if (isLocalServer) {{
-                fetch('/open-in-cursor?path=' + encodeURIComponent(path) + '&new=' + newWindow)
-                    .then(r => r.ok ? showNotification('Opening: ' + path.split('/').pop(), 'success') : showNotification('Error', 'error'))
+                fetch('/open-in-cursor?path=' + encodeURIComponent(path) + '&new=true')
+                    .then(r => r.json().then(d => ({{ok: r.ok, d}})).catch(() => ({{ok: r.ok, d: {{}}}})))
+                    .then(({{ok, d}}) => ok
+                        ? showNotification('Opening: ' + path.split('/').pop(), 'success')
+                        : showNotification(d.message || 'Error opening Cursor', 'error'))
                     .catch(() => showNotification('Server error', 'error'));
             }} else {{
-                if (newWindow) {{
-                    navigator.clipboard.writeText('cursor -n "' + path + '"');
-                    showNotification('Command copied! Run server.py for click support', 'info');
-                }} else {{
-                    const link = document.createElement('a');
-                    link.href = 'cursor://file/' + path;
-                    link.click();
-                    showNotification('Opening: ' + path.split('/').pop(), 'success');
-                }}
+                const link = document.createElement('a');
+                link.href = 'cursor://file/' + path;
+                link.click();
+                showNotification('Opening: ' + path.split('/').pop(), 'success');
             }}
         }}
         
@@ -3915,10 +3910,9 @@ def generate_html(projects: List[Dict]) -> str:
                 showNotification('Opened in Cursor (run server.py to also launch app)', 'info');
                 return;
             }}
-            const newWindow = event.ctrlKey || event.metaKey || event.shiftKey;
-            // The server opens the Cursor window AND opens the app in Chrome when ready.
+            // Always a new Cursor window so this launcher workspace stays put.
             showNotification('Opening ' + name + ' in Cursor + app → Chrome', 'info');
-            fetch('/open-both?path=' + encodeURIComponent(path) + '&new=' + newWindow)
+            fetch('/open-both?path=' + encodeURIComponent(path) + '&new=true')
                 .then(r => r.json())
                 .then(data => {{
                     if (data.url) {{

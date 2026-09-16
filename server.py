@@ -5,6 +5,7 @@ Serves the dashboard and handles opening projects in new Cursor windows.
 """
 
 import http.server
+import shutil
 import socketserver
 import subprocess
 import threading
@@ -35,7 +36,32 @@ DASHBOARD_DIR = Path(__file__).parent
 PINNED_FILE = DASHBOARD_DIR / "pinned.json"
 RECENT_FILE = DASHBOARD_DIR / "recent.json"
 MAX_RECENT = 20
-CURSOR_CMD = "/usr/local/bin/cursor"  # Full path for Dock app compatibility
+# Dock / non-login launches often have no PATH entry for `cursor`.
+_CURSOR_CMD_CACHE = None
+
+
+def resolve_cursor_cmd():
+    """Return an executable Cursor CLI path, or None if none is installed."""
+    global _CURSOR_CMD_CACHE
+    if _CURSOR_CMD_CACHE:
+        return _CURSOR_CMD_CACHE
+    candidates = [
+        os.environ.get('CURSOR_CMD'),
+        '/usr/local/bin/cursor',
+        '/opt/homebrew/bin/cursor',
+        str(Path.home() / '.local/bin/cursor'),
+        '/Applications/Cursor.app/Contents/Resources/app/bin/cursor',
+        shutil.which('cursor'),
+    ]
+    seen = set()
+    for candidate in candidates:
+        if not candidate or candidate in seen:
+            continue
+        seen.add(candidate)
+        if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+            _CURSOR_CMD_CACHE = candidate
+            return candidate
+    return None
 
 class CursorLauncherHandler(http.server.SimpleHTTPRequestHandler):
     """Custom handler that can open Cursor in new windows."""
@@ -50,12 +76,17 @@ class CursorLauncherHandler(http.server.SimpleHTTPRequestHandler):
         # Handle open-in-cursor requests
         if parsed.path == '/open-in-cursor':
             path = query.get('path', [''])[0]
-            new_window = query.get('new', ['false'])[0] == 'true'
+            new_window = query.get('new', ['true'])[0] != 'false'
             
             if path and os.path.exists(path):
-                self.open_cursor(path, new_window)
-                self.add_to_recent(path)
-                self.send_json_response(200, {"status": "ok"})
+                if self.open_cursor(path, new_window):
+                    self.add_to_recent(path)
+                    self.send_json_response(200, {"status": "ok"})
+                else:
+                    self.send_json_response(500, {
+                        "status": "error",
+                        "message": "Could not open Cursor. Is Cursor.app installed?",
+                    })
             else:
                 self.send_json_response(400, {"status": "error", "message": "Invalid path"})
             return
@@ -100,7 +131,7 @@ class CursorLauncherHandler(http.server.SimpleHTTPRequestHandler):
         # Open the Cursor window AND launch the app together
         if parsed.path == '/open-both':
             path = query.get('path', [''])[0]
-            new_window = query.get('new', ['false'])[0] == 'true'
+            new_window = query.get('new', ['true'])[0] != 'false'
             if path and os.path.exists(path):
                 self.open_cursor(path, new_window)
                 self.add_to_recent(path)
@@ -140,7 +171,7 @@ class CursorLauncherHandler(http.server.SimpleHTTPRequestHandler):
             fname = query.get('file', [''])[0]
             target = self.resolve_project_file(path, fname)
             if target:
-                self.open_cursor(target, new_window=False)
+                self.open_cursor(target, new_window=True)
                 self.send_json_response(200, {"status": "ok", "file": target})
             else:
                 self.send_json_response(404, {"status": "error", "message": f"Not found: {fname}"})
@@ -363,26 +394,34 @@ class CursorLauncherHandler(http.server.SimpleHTTPRequestHandler):
         with open(RECENT_FILE, 'w') as f:
             json.dump(recent, f, indent=2)
     
-    def open_cursor(self, path, new_window=False):
-        """Open a project in Cursor."""
+    def open_cursor(self, path, new_window=True):
+        """Open a project in a new Cursor window. Never reuse the current one.
+
+        Reusing the last window (`-r`) replaces the workspace that is running
+        this launcher and kills its server, so we always force `-n`.
+        """
+        cmd = resolve_cursor_cmd()
         try:
-            if new_window:
-                # -n forces a brand-new window
-                subprocess.Popen([CURSOR_CMD, '-n', path],
+            if cmd:
+                subprocess.Popen([cmd, '-n', path],
+                               stdout=subprocess.DEVNULL,
+                               stderr=subprocess.DEVNULL)
+            elif sys.platform == 'darwin':
+                subprocess.Popen(['open', '-n', '-a', 'Cursor', '--args', path],
                                stdout=subprocess.DEVNULL,
                                stderr=subprocess.DEVNULL)
             else:
-                # Default: -r reuses the last active editor window instead of
-                # spawning a new one.
-                subprocess.Popen([CURSOR_CMD, '-r', path],
-                               stdout=subprocess.DEVNULL,
-                               stderr=subprocess.DEVNULL)
-            print(f"✅ Opened in Cursor{' (new window)' if new_window else ''}: {path}")
+                print("❌ Error: Cursor CLI not found. Install the `cursor` shell command.")
+                return False
+            print(f"✅ Opened in Cursor (new window): {path}")
+            return True
         except FileNotFoundError:
-            print(f"❌ Error: 'cursor' command not found at {CURSOR_CMD}.")
-            print("   Run: Cursor > Command Palette > 'Shell Command: Install cursor command'")
+            print("❌ Error: Cursor command not found.")
+            print("   Install Cursor.app, or run: Command Palette → 'Shell Command: Install cursor command'")
+            return False
         except Exception as e:
             print(f"❌ Error opening Cursor: {e}")
+            return False
     
     def regenerate_dashboard(self):
         """Re-run generate_dashboard.py synchronously so dashboard.html reflects
@@ -970,8 +1009,7 @@ def main():
                 print(f"   Open manually: {url}")
         
         print(f"\n💡 Tips:")
-        print(f"   • Click a project to open in Cursor")
-        print(f"   • ⌘/Ctrl+Click to open in NEW Cursor window")
+        print(f"   • Click a project to open it in a new Cursor window")
         print(f"   • Press Ctrl+C to stop the server")
         print()
         
