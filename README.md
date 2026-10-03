@@ -57,8 +57,11 @@ Discovery is **this machine's folders first**, then GitHub fills gaps.
 | Other first-level folders under `~/Coding` | **OTHER** |
 | Top-level folders in `~` (minus system/cloud dirs) | **HOME** |
 
-Every first-level folder is a card. `catalogue.json` and `screenshot.png` are
-optional; without them you still get a title from the folder name.
+A git repo is one card. A folder that is **not** a repo, but contains repos
+(for example `~/Teaching`), is not a card — each repo inside it is, with its
+own branch, dirty count, and last commit. Loose files in that folder stay
+hidden. `catalogue.json` and `screenshot.png` are optional; without them you
+still get a title from the folder name.
 
 A local folder whose `origin` is already on GitHub stays a **local** card in
 that folder category. It is not shown again under GitHub. Local-only folders

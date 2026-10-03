@@ -313,6 +313,58 @@ def _js_str(value: str) -> str:
     return value.replace("\\", "\\\\").replace("'", "\\'")
 
 
+def immediate_git_repos(folder: Path) -> List[Path]:
+    """Child directories that are git repos.
+
+    Empty when ``folder`` is itself a repo — nested repos stay inside that
+    project. A plain folder that only holds repos (``~/Teaching``) returns
+    those children so the wrapper is not a card.
+    """
+    try:
+        if (folder / '.git').exists():
+            return []
+    except OSError:
+        return []
+    repos: List[Path] = []
+    try:
+        for child in sorted(folder.iterdir()):
+            if not child.is_dir() or child.name.startswith('.') or child.name in IGNORE_FOLDERS:
+                continue
+            try:
+                if (child / '.git').exists():
+                    repos.append(child)
+            except OSError:
+                continue
+    except (PermissionError, OSError):
+        return []
+    return repos
+
+
+def folders_to_scan(folder: Path) -> List[Path]:
+    """Replace a non-repo that contains repos with those repos."""
+    nested = immediate_git_repos(folder)
+    return nested if nested else [folder]
+
+
+def _append_scanned(projects: List[Dict], folder: Path, category: str,
+                     pinned_paths: List[str], cursor_recent: List[str],
+                     seen_paths: Set[str]) -> None:
+    """Add ``folder``, or each repo inside it when the folder is only a wrapper."""
+    folder_str = str(folder)
+    if folder_str in seen_paths:
+        return
+    seen_paths.add(folder_str)
+    for target in folders_to_scan(folder):
+        target_str = str(target)
+        if target_str != folder_str:
+            if target_str in seen_paths:
+                continue
+            seen_paths.add(target_str)
+        project = create_project_entry(target, category, pinned_paths, cursor_recent)
+        if project:
+            projects.append(project)
+
+
 def scan_home_folders(pinned_paths: List[str], cursor_recent: List[str],
                       seen_paths: Set[str]) -> List[Dict]:
     """Scan ~ for top-level directories, returning them as project entries."""
@@ -325,14 +377,10 @@ def scan_home_folders(pinned_paths: List[str], cursor_recent: List[str],
             # Never include standard macOS / cloud system folders in any view.
             if item.name in COMMON_OSX_FOLDERS:
                 continue
-            item_str = str(item)
-            if item_str in seen_paths:
-                continue
-            seen_paths.add(item_str)
-            project = create_project_entry(item, "HOME", pinned_paths, cursor_recent)
-            if project:
+            before = len(folders)
+            _append_scanned(folders, item, "HOME", pinned_paths, cursor_recent, seen_paths)
+            for project in folders[before:]:
                 project['is_common_osx'] = False
-                folders.append(project)
     except PermissionError:
         pass
     return folders
@@ -568,16 +616,9 @@ def find_all_projects() -> List[Dict]:
                     continue
                 if project_folder.name in IGNORE_FOLDERS:
                     continue
-                
-                folder_str = str(project_folder)
-                if folder_str in seen_paths:
-                    continue
-                
-                # Every first-level subfolder is a project - don't scan deeper
-                seen_paths.add(folder_str)
-                project = create_project_entry(project_folder, category, pinned_paths, cursor_recent)
-                if project:
-                    projects.append(project)
+                # A repo is one card. A plain folder that only holds repos
+                # (not itself a repo) is replaced by those repos.
+                _append_scanned(projects, project_folder, category, pinned_paths, cursor_recent, seen_paths)
         except PermissionError:
             pass
     
@@ -591,15 +632,7 @@ def find_all_projects() -> List[Dict]:
                 if item.name in MAIN_CATEGORIES or item.name in IGNORE_FOLDERS:
                     continue
 
-                item_str = str(item)
-                if item_str in seen_paths:
-                    continue
-
-                # Every first-level folder outside main categories is "OTHER"
-                seen_paths.add(item_str)
-                project = create_project_entry(item, "OTHER", pinned_paths, cursor_recent)
-                if project:
-                    projects.append(project)
+                _append_scanned(projects, item, "OTHER", pinned_paths, cursor_recent, seen_paths)
         except PermissionError:
             pass
     

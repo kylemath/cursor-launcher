@@ -20,7 +20,7 @@ The scanner expects this tree (create empty category folders if they do not exis
 ~/Coding/HARDWARE/
 ```
 
-First-level folders under those names become cards. Other first-level folders in `~/Coding` show as **OTHER**. Top-level folders in `~` show as **HOME**.
+First-level folders under those names become cards. Other first-level folders in `~/Coding` show as **OTHER**. Top-level folders in `~` show as **HOME**. A folder that is not a git repo but holds repos (such as `~/Teaching`) is skipped; each repo inside it is its own card.
 
 ## 2. Start the dashboard
 
